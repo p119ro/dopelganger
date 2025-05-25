@@ -15,7 +15,7 @@ class DoppelgangerApp {
         };
 
         this.user = {
-            name: 'Player',
+            name: '',
             level: 1,
             experience: 0,
             totalPoints: 0,
@@ -25,7 +25,8 @@ class DoppelgangerApp {
                 strength: 100,
                 glow: 0,
                 aura: 0
-            }
+            },
+            isFirstTime: true
         };
 
         this.doppelganger = {
@@ -74,10 +75,61 @@ class DoppelgangerApp {
 
     init() {
         this.loadFromStorage();
+        
+        // Check if first time user
+        if (this.user.isFirstTime) {
+            this.showNameModal();
+        }
+        
         this.setupEventListeners();
         this.updateDisplay();
         this.startTimers();
         this.calculateStreaksAndStats();
+    }
+
+    // ============ USER SETUP ============
+    showNameModal() {
+        const modalHTML = `
+            <div class="modal-overlay active" id="nameModalOverlay" style="z-index: 3000;">
+                <div class="modal" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h3>Welcome to Doppelganger</h3>
+                    </div>
+                    <div class="modal-content">
+                        <p style="margin-bottom: 1rem; color: var(--text-secondary);">What should we call you, warrior?</p>
+                        <input type="text" placeholder="Enter your name" id="userName" style="width: 100%; margin-bottom: 1rem;">
+                        <button class="action-btn" id="confirmName">Begin Your Journey</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        document.getElementById('confirmName').addEventListener('click', () => {
+            const name = document.getElementById('userName').value.trim();
+            if (name) {
+                this.user.name = name;
+                this.user.isFirstTime = false;
+                this.saveToStorage();
+                document.getElementById('nameModalOverlay').remove();
+                this.updateDisplay();
+            } else {
+                alert('Please enter your name to continue');
+            }
+        });
+
+        // Focus on input
+        setTimeout(() => {
+            document.getElementById('userName').focus();
+        }, 100);
+
+        // Enter key support
+        document.getElementById('userName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('confirmName').click();
+            }
+        });
     }
 
     // ============ STORAGE METHODS ============
@@ -94,8 +146,34 @@ class DoppelgangerApp {
         try {
             const compressed = JSON.stringify(data);
             localStorage.setItem('doppelganger_data', compressed);
+            this.saveCurrentDate();
         } catch (error) {
             console.error('Failed to save data:', error);
+        }
+    }
+
+    saveCurrentDate() {
+        localStorage.setItem('doppelganger_currentDate', this.currentDate.toISOString());
+    }
+
+    handleRealDayTransition() {
+        const now = new Date();
+        const lastCheck = this.user.lastCheck ? new Date(this.user.lastCheck) : this.currentDate;
+        
+        // Calculate how many real days have passed
+        const timeDiff = now.getTime() - lastCheck.getTime();
+        const daysPassed = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+        
+        if (daysPassed >= 1) {
+            // Advance currentDate by the number of days that passed
+            this.currentDate.setDate(this.currentDate.getDate() + daysPassed);
+            this.user.lastCheck = now.toISOString();
+            
+            console.log(`Advanced ${daysPassed} day(s). New current date: ${this.formatDate(this.currentDate)}`);
+            
+            // Recalculate everything with new date
+            this.calculateStreaksAndStats();
+            this.saveToStorage();
         }
     }
 
@@ -113,6 +191,19 @@ class DoppelgangerApp {
                 this.dailyData = data.dailyData || {};
                 this.battle = { ...this.battle, ...data.battle };
             }
+
+            // Restore currentDate as the authoritative "today"
+            const savedDate = localStorage.getItem('doppelganger_currentDate');
+            if (savedDate) {
+                this.currentDate = new Date(savedDate);
+            } else {
+                this.currentDate = new Date();
+                this.saveCurrentDate();
+            }
+            
+            // Check if real days have passed and advance currentDate accordingly
+            this.handleRealDayTransition();
+            
         } catch (error) {
             console.error('Failed to load data:', error);
             // Start fresh if data is corrupted
@@ -122,7 +213,10 @@ class DoppelgangerApp {
 
     resetData() {
         localStorage.removeItem('doppelganger_data');
+        localStorage.removeItem('doppelganger_currentDate');
         this.dailyData = {};
+        this.currentDate = new Date();
+        this.user.isFirstTime = true;
         this.saveToStorage();
     }
 
@@ -136,7 +230,8 @@ class DoppelgangerApp {
     }
 
     getTodayKey() {
-        return this.formatDate(new Date());
+        // Use currentDate as the authoritative "today"
+        return this.formatDate(this.currentDate);
     }
 
     getDailyData(dateKey) {
@@ -153,51 +248,51 @@ class DoppelgangerApp {
 
     // ============ STREAK CALCULATION ============
     calculateStreaksAndStats() {
-        const today = new Date();
+        // Use currentDate as authoritative "today"
+        const today = new Date(this.currentDate);
         const todayKey = this.formatDate(today);
         
-        // Reset user stats
+        // Calculate total experience and points from all completed habits
+        let totalExperience = 0;
         this.user.totalPoints = 0;
         this.user.monthlyPoints = 0;
         
-        // Calculate monthly points (last 30 days)
-        for (let i = 0; i < 30; i++) {
-            const date = new Date(today);
-            date.setDate(date.getDate() - i);
-            const dateKey = this.formatDate(date);
+        // Get all dates and sort them
+        const allDates = Object.keys(this.dailyData).sort();
+        
+        // Calculate total points and experience
+        for (const dateKey of allDates) {
             const data = this.dailyData[dateKey];
+            const dayDate = new Date(dateKey);
+            const daysSinceToday = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
             
-            if (data) {
-                if (i === 0) {
-                    this.user.totalPoints += data.points || 0;
+            if (data && data.completed) {
+                const dayPoints = data.completed.reduce((sum, habitId) => {
+                    const habit = this.habits[habitId];
+                    return sum + (habit ? habit.points : 0);
+                }, 0);
+                
+                totalExperience += dayPoints;
+                this.user.totalPoints += dayPoints;
+                
+                // Monthly points (last 30 days from currentDate)
+                if (daysSinceToday <= 30 && daysSinceToday >= 0) {
+                    this.user.monthlyPoints += dayPoints;
                 }
-                this.user.monthlyPoints += data.points || 0;
             }
         }
 
-        // Calculate streaks for each habit
+        // Update experience and calculate level
+        this.user.experience = totalExperience;
+        this.calculateLevel();
+
+        // Calculate streaks for each habit using currentDate
         Object.keys(this.habits).forEach(habitId => {
-            let streak = 0;
-            let checkDate = new Date(today);
-            
-            // Look backwards from today to find consecutive completions
-            while (true) {
-                const dateKey = this.formatDate(checkDate);
-                const dayData = this.dailyData[dateKey];
-                
-                if (dayData && dayData.completed && dayData.completed.includes(habitId)) {
-                    streak++;
-                    checkDate.setDate(checkDate.getDate() - 1);
-                } else {
-                    break;
-                }
-            }
-            
-            this.habits[habitId].streak = streak;
+            this.habits[habitId].streak = this.calculateHabitStreak(habitId);
         });
 
-        // Calculate current overall streak
-        this.user.currentStreak = this.calculateCurrentStreak();
+        // Calculate current overall streak using currentDate
+        this.user.currentStreak = this.calculateOverallStreak();
         
         // Update tier based on monthly points
         this.updateTierProgression();
@@ -208,12 +303,59 @@ class DoppelgangerApp {
         this.saveToStorage();
     }
 
-    calculateCurrentStreak() {
-        const today = new Date();
-        let streak = 0;
-        let checkDate = new Date(today);
+    calculateLevel() {
+        // Simple leveling: Level 1 = 0-99 XP, Level 2 = 100-199 XP, etc.
+        this.user.level = Math.floor(this.user.experience / 100) + 1;
         
-        while (true) {
+        // Calculate current level progress
+        this.user.currentLevelXP = this.user.experience % 100;
+        this.user.nextLevelXP = 100;
+    }
+
+    calculateHabitStreak(habitId) {
+        // Use currentDate as authoritative "today"
+        const today = new Date(this.currentDate);
+        let streak = 0;
+        
+        // Start from currentDate and go backwards
+        for (let i = 0; i >= -365; i--) { // Check up to a year back
+            const checkDate = new Date(today);
+            checkDate.setDate(today.getDate() + i);
+            const dateKey = this.formatDate(checkDate);
+            const dayData = this.dailyData[dateKey];
+            
+            if (dayData && dayData.completed && dayData.completed.includes(habitId)) {
+                if (i === 0) {
+                    // Today counts towards streak
+                    streak++;
+                } else if (streak > 0) {
+                    // Consecutive day
+                    streak++;
+                } else {
+                    // Gap found, stop counting
+                    break;
+                }
+            } else if (i === 0) {
+                // Today not completed, no current streak
+                break;
+            } else if (streak > 0) {
+                // Gap found in consecutive days
+                break;
+            }
+        }
+        
+        return streak;
+    }
+
+    calculateOverallStreak() {
+        // Use currentDate as authoritative "today"
+        const today = new Date(this.currentDate);
+        let streak = 0;
+        
+        // Start from currentDate and go backwards
+        for (let i = 0; i >= -365; i--) {
+            const checkDate = new Date(today);
+            checkDate.setDate(today.getDate() + i);
             const dateKey = this.formatDate(checkDate);
             const dayData = this.dailyData[dateKey];
             
@@ -223,12 +365,28 @@ class DoppelgangerApp {
                 
                 // Consider it a streak day if at least 70% of habits completed
                 if (completedHabits >= Math.ceil(totalHabits * 0.7)) {
-                    streak++;
-                    checkDate.setDate(checkDate.getDate() - 1);
-                } else {
+                    if (i === 0) {
+                        // Today counts
+                        streak++;
+                    } else if (streak > 0) {
+                        // Consecutive day
+                        streak++;
+                    } else {
+                        // Gap found
+                        break;
+                    }
+                } else if (i === 0) {
+                    // Today doesn't meet criteria
+                    break;
+                } else if (streak > 0) {
+                    // Gap found
                     break;
                 }
-            } else {
+            } else if (i === 0) {
+                // No data for today
+                break;
+            } else if (streak > 0) {
+                // Gap found
                 break;
             }
         }
@@ -361,7 +519,6 @@ class DoppelgangerApp {
         if (completed && !wasCompleted) {
             // Habit completed
             dayData.completed.push(habitId);
-            dayData.points = (dayData.points || 0) + habit.points;
             
             // Update avatar strength
             this.user.avatar.strength += 2;
@@ -372,7 +529,6 @@ class DoppelgangerApp {
         } else if (!completed && wasCompleted) {
             // Habit uncompleted
             dayData.completed = dayData.completed.filter(id => id !== habitId);
-            dayData.points = Math.max(0, (dayData.points || 0) - habit.points);
             
             // Reduce avatar strength
             this.user.avatar.strength = Math.max(50, this.user.avatar.strength - 2);
@@ -381,7 +537,7 @@ class DoppelgangerApp {
             this.doppelganger.influence = Math.min(100, this.doppelganger.influence + 5);
         }
 
-        // Recalculate streaks and stats
+        // Recalculate everything based on actual data
         this.calculateStreaksAndStats();
         
         this.updateHabitCard(habitId);
@@ -424,13 +580,14 @@ class DoppelgangerApp {
         const newDate = new Date(this.currentDate);
         newDate.setDate(newDate.getDate() + direction);
         
-        // Don't allow future dates beyond today
-        const today = new Date();
-        today.setHours(23, 59, 59, 999); // End of today
+        // Don't allow future dates beyond the real today
+        const realToday = new Date();
+        realToday.setHours(23, 59, 59, 999); // End of real today
         
-        if (newDate > today) return;
+        if (newDate > realToday) return;
         
         this.currentDate = newDate;
+        this.saveCurrentDate(); // Persist the new current date
         this.updateCurrentDate();
         this.updateHabitsSection();
         this.updateDashboard();
@@ -443,8 +600,12 @@ class DoppelgangerApp {
             month: 'long', 
             day: 'numeric' 
         };
-        const today = new Date();
-        const isToday = this.currentDate.toDateString() === today.toDateString();
+        const realToday = new Date();
+        
+        // Check if currentDate matches real today (same day, month, year)
+        const isToday = this.currentDate.getDate() === realToday.getDate() &&
+                       this.currentDate.getMonth() === realToday.getMonth() &&
+                       this.currentDate.getFullYear() === realToday.getFullYear();
         
         document.getElementById('currentDate').textContent = isToday ? 
             'Today' : 
@@ -484,7 +645,12 @@ class DoppelgangerApp {
         const dayData = this.getDailyData(dateKey);
         const completedHabits = dayData.completed ? dayData.completed.length : 0;
         const totalHabits = Object.keys(this.habits).length;
-        const basePoints = dayData.points || 0;
+        
+        // Calculate points for this specific day
+        const basePoints = dayData.completed ? dayData.completed.reduce((sum, habitId) => {
+            const habit = this.habits[habitId];
+            return sum + (habit ? habit.points : 0);
+        }, 0) : 0;
         
         const teamBonus = this.team.multiplier;
         const finalScore = Math.round(basePoints * teamBonus);
@@ -543,26 +709,18 @@ class DoppelgangerApp {
         
         strengthMeter.style.width = `${meterPosition}%`;
 
-        // Update avatar info
+        // Update avatar info with proper XP display
+        const userName = this.user.name || 'Your Avatar';
+        document.querySelector('.avatar-info h3').textContent = userName;
         document.getElementById('avatarLevel').textContent = `Level ${this.user.level}`;
-        document.getElementById('avatarExp').textContent = `${this.user.experience % 100} / 100 XP`;
+        
+        // Show current level progress - make sure we have the calculated values
+        const currentXP = this.user.currentLevelXP !== undefined ? this.user.currentLevelXP : (this.user.experience % 100);
+        const neededXP = this.user.nextLevelXP || 100;
+        document.getElementById('avatarExp').textContent = `${currentXP} / ${neededXP} XP`;
+        
         document.getElementById('doppelgangerLevel').textContent = `Level ${this.doppelganger.level}`;
         document.getElementById('doppelgangerPower').textContent = `${Math.round(this.doppelganger.influence)}% Influence`;
-
-        // Level up check
-        if (this.user.experience >= this.user.level * 100) {
-            this.levelUp();
-        }
-    }
-
-    levelUp() {
-        this.user.level += 1;
-        this.user.experience = this.user.experience % 100;
-        
-        // Increase avatar base strength
-        this.user.avatar.strength += 10;
-        
-        this.saveToStorage();
     }
 
     updateTierProgression() {
@@ -618,10 +776,14 @@ class DoppelgangerApp {
     updateQuickStats() {
         const todayKey = this.getTodayKey();
         const todayData = this.getDailyData(todayKey);
+        const todayPoints = todayData.completed ? todayData.completed.reduce((sum, habitId) => {
+            const habit = this.habits[habitId];
+            return sum + (habit ? habit.points : 0);
+        }, 0) : 0;
         
         document.getElementById('currentStreak').textContent = this.user.currentStreak;
         document.getElementById('monthlyPoints').textContent = this.user.monthlyPoints;
-        document.getElementById('dailyScore').textContent = `${todayData.points || 0} pts`;
+        document.getElementById('dailyScore').textContent = `${todayPoints} pts`;
         document.getElementById('teamRank').textContent = this.team.id ? '#3' : '#--';
     }
 
@@ -652,7 +814,10 @@ class DoppelgangerApp {
         // Simulate basic team scoring if in a team
         const todayKey = this.getTodayKey();
         const todayData = this.getDailyData(todayKey);
-        const userScore = todayData.points || 0;
+        const userScore = todayData.completed ? todayData.completed.reduce((sum, habitId) => {
+            const habit = this.habits[habitId];
+            return sum + (habit ? habit.points : 0);
+        }, 0) : 0;
         
         // Simulate other member scores (in real app, this would come from server)
         const teamScore = userScore + 150; // Simulated team contribution
@@ -696,10 +861,13 @@ class DoppelgangerApp {
         // Show user and simulate other members
         const todayKey = this.getTodayKey();
         const todayData = this.getDailyData(todayKey);
-        const userScore = todayData.points || 0;
+        const userScore = todayData.completed ? todayData.completed.reduce((sum, habitId) => {
+            const habit = this.habits[habitId];
+            return sum + (habit ? habit.points : 0);
+        }, 0) : 0;
         
         const members = [
-            { name: 'You', score: userScore },
+            { name: this.user.name || 'You', score: userScore },
             ...this.team.members.slice(1)
         ];
 
@@ -778,7 +946,7 @@ class DoppelgangerApp {
         // Create team
         this.team.id = 'team_' + Date.now();
         this.team.name = teamName;
-        this.team.members = [{ name: 'You', score: 0 }];
+        this.team.members = [{ name: this.user.name || 'You', score: 0 }];
 
         // Mark team player achievement
         this.achievements['team-player'] = true;
@@ -801,7 +969,7 @@ class DoppelgangerApp {
         this.team.id = teamCode;
         this.team.name = 'Team ' + teamCode.substring(5, 10);
         this.team.members = [
-            { name: 'You', score: 0 },
+            { name: this.user.name || 'You', score: 0 },
             { name: 'TeamMate_1', score: 45 },
             { name: 'TeamMate_2', score: 38 }
         ];
@@ -823,7 +991,7 @@ class DoppelgangerApp {
     }
 
     updateCharts() {
-        // Basic chart data visualization
+        // Basic chart data visualization using currentDate as reference
         const pointsChart = document.querySelector('#pointsChart canvas');
         const habitsChart = document.querySelector('#habitsChart canvas');
         
@@ -835,18 +1003,23 @@ class DoppelgangerApp {
             ctx1.clearRect(0, 0, pointsChart.width, pointsChart.height);
             ctx2.clearRect(0, 0, habitsChart.width, habitsChart.height);
             
-            // Draw simple line for points over time
+            // Draw simple line for points over time (last 7 days from currentDate)
             ctx1.strokeStyle = '#00d4ff';
             ctx1.lineWidth = 2;
             ctx1.beginPath();
             
             const days = 7;
+            const today = new Date(this.currentDate);
+            
             for (let i = 0; i < days; i++) {
-                const date = new Date();
-                date.setDate(date.getDate() - (days - 1 - i));
+                const date = new Date(today);
+                date.setDate(today.getDate() - (days - 1 - i));
                 const dateKey = this.formatDate(date);
                 const dayData = this.dailyData[dateKey];
-                const points = dayData ? dayData.points || 0 : 0;
+                const points = dayData && dayData.completed ? dayData.completed.reduce((sum, habitId) => {
+                    const habit = this.habits[habitId];
+                    return sum + (habit ? habit.points : 0);
+                }, 0) : 0;
                 
                 const x = (i / (days - 1)) * (pointsChart.width - 40) + 20;
                 const y = pointsChart.height - 20 - (points / 100) * (pointsChart.height - 40);
@@ -861,10 +1034,9 @@ class DoppelgangerApp {
             
             // Draw completion rate
             ctx2.fillStyle = '#00ff88';
-            const today = new Date();
             for (let i = 0; i < days; i++) {
-                const date = new Date();
-                date.setDate(date.getDate() - (days - 1 - i));
+                const date = new Date(today);
+                date.setDate(today.getDate() - (days - 1 - i));
                 const dateKey = this.formatDate(date);
                 const dayData = this.dailyData[dateKey];
                 const completedCount = dayData && dayData.completed ? dayData.completed.length : 0;
@@ -962,10 +1134,10 @@ class DoppelgangerApp {
         document.getElementById('avatarPower').textContent = `Power: ${Math.round(avatarPower)}`;
         document.getElementById('shadowPower').textContent = `Power: ${Math.round(shadowPower)}`;
 
-        // Update battle status based on weekly performance
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
+        // Update battle status based on weekly performance from currentDate
+        const today = new Date(this.currentDate);
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Monday
         
         let weeklyCompletion = 0;
         let daysChecked = 0;
@@ -974,7 +1146,7 @@ class DoppelgangerApp {
             const checkDate = new Date(startOfWeek);
             checkDate.setDate(startOfWeek.getDate() + i);
             
-            if (checkDate <= now) {
+            if (checkDate <= today) {
                 const dateKey = this.formatDate(checkDate);
                 const dayData = this.dailyData[dateKey];
                 const completed = dayData && dayData.completed ? dayData.completed.length : 0;
@@ -1037,26 +1209,10 @@ class DoppelgangerApp {
             }
         }, 1000);
 
-        // Daily reset and battle check
+        // Check for real day transitions every 30 minutes
         setInterval(() => {
-            this.checkDailyReset();
-            this.checkWeeklyBattle();
-        }, 60000); // Check every minute
-    }
-
-    checkDailyReset() {
-        const now = new Date();
-        const lastCheck = new Date(this.user.lastCheck || now);
-        
-        // If it's a new day
-        if (now.getDate() !== lastCheck.getDate() || 
-            now.getMonth() !== lastCheck.getMonth() || 
-            now.getFullYear() !== lastCheck.getFullYear()) {
-            
-            this.user.lastCheck = now.toISOString();
-            this.calculateStreaksAndStats();
-            this.saveToStorage();
-        }
+            this.handleRealDayTransition();
+        }, 30 * 60 * 1000); // 30 minutes
     }
 
     checkWeeklyBattle() {
@@ -1083,8 +1239,12 @@ class DoppelgangerApp {
             const dateKey = this.formatDate(checkDate);
             const dayData = this.dailyData[dateKey];
             
-            if (dayData) {
-                weeklyScore += dayData.points || 0;
+            if (dayData && dayData.completed) {
+                const dayPoints = dayData.completed.reduce((sum, habitId) => {
+                    const habit = this.habits[habitId];
+                    return sum + (habit ? habit.points : 0);
+                }, 0);
+                weeklyScore += dayPoints;
                 daysCount++;
             }
         }
@@ -1110,14 +1270,149 @@ class DoppelgangerApp {
         this.saveToStorage();
     }
 
+    // ============ DEBUG METHODS (Console Commands) ============
+    
+    // Add these methods for console testing
+    debugSkipDays(days) {
+        console.log(`🕐 Skipping ${days} day(s)...`);
+        console.log(`📅 Before: ${this.formatDate(this.currentDate)}`);
+        
+        this.currentDate.setDate(this.currentDate.getDate() + days);
+        this.user.lastCheck = new Date().toISOString(); // Update last check to prevent auto-advance
+        
+        console.log(`📅 After: ${this.formatDate(this.currentDate)}`);
+        
+        // Recalculate everything
+        this.calculateStreaksAndStats();
+        this.saveToStorage();
+        this.updateDisplay();
+        
+        console.log(`✅ Time advanced! Streaks and stats recalculated.`);
+        this.debugShowStatus();
+    }
+    
+    debugGoToDate(dateString) {
+        try {
+            const newDate = new Date(dateString);
+            if (isNaN(newDate.getTime())) {
+                console.error('❌ Invalid date format. Use: YYYY-MM-DD (e.g., "2024-01-15")');
+                return;
+            }
+            
+            console.log(`📅 Jumping to: ${this.formatDate(newDate)}`);
+            this.currentDate = newDate;
+            this.user.lastCheck = new Date().toISOString();
+            
+            this.calculateStreaksAndStats();
+            this.saveToStorage();
+            this.updateDisplay();
+            
+            console.log(`✅ Jumped to ${this.formatDate(newDate)}!`);
+            this.debugShowStatus();
+        } catch (error) {
+            console.error('❌ Error jumping to date:', error.message);
+        }
+    }
+    
+    debugGoToToday() {
+        console.log(`📅 Returning to real today...`);
+        this.currentDate = new Date();
+        this.user.lastCheck = new Date().toISOString();
+        
+        this.calculateStreaksAndStats();
+        this.saveToStorage();
+        this.updateDisplay();
+        
+        console.log(`✅ Back to today: ${this.formatDate(this.currentDate)}`);
+        this.debugShowStatus();
+    }
+    
+    debugShowStatus() {
+        console.log('\n📊 CURRENT STATUS:');
+        console.log(`📅 Current Date: ${this.formatDate(this.currentDate)}`);
+        console.log(`📅 Real Today: ${this.formatDate(new Date())}`);
+        console.log(`🔥 Current Streak: ${this.user.currentStreak} days`);
+        console.log(`⭐ Total XP: ${this.user.experience}`);
+        console.log(`🏆 Level: ${this.user.level}`);
+        console.log(`📈 Monthly Points: ${this.user.monthlyPoints}`);
+        
+        const todayData = this.getDailyData(this.getCurrentDateKey());
+        const completed = todayData.completed ? todayData.completed.length : 0;
+        console.log(`✅ Today's Habits: ${completed}/${Object.keys(this.habits).length}`);
+        
+        // Show habit streaks
+        console.log('\n🎯 HABIT STREAKS:');
+        Object.entries(this.habits).forEach(([id, habit]) => {
+            console.log(`${habit.icon} ${habit.name}: ${habit.streak} days`);
+        });
+    }
+    
+    debugSimulateWeek() {
+        console.log('🚀 Simulating a week of varied habit completion...');
+        
+        // Go back 7 days
+        const startDate = new Date(this.currentDate);
+        startDate.setDate(startDate.getDate() - 6);
+        
+        const habitIds = Object.keys(this.habits);
+        
+        for (let i = 0; i < 7; i++) {
+            const testDate = new Date(startDate);
+            testDate.setDate(startDate.getDate() + i);
+            const dateKey = this.formatDate(testDate);
+            
+            // Simulate different completion rates
+            const completionRate = 0.4 + Math.random() * 0.6; // 40-100% completion
+            const habitsToComplete = Math.floor(habitIds.length * completionRate);
+            
+            const dayData = this.getDailyData(dateKey);
+            dayData.completed = habitIds.slice(0, habitsToComplete);
+            
+            console.log(`📅 ${dateKey}: Completed ${habitsToComplete}/${habitIds.length} habits`);
+        }
+        
+        this.calculateStreaksAndStats();
+        this.saveToStorage();
+        this.updateDisplay();
+        
+        console.log('✅ Week simulation complete!');
+        this.debugShowStatus();
+    }
+    
+    debugResetData() {
+        if (confirm('⚠️ This will reset ALL data. Are you sure?')) {
+            console.log('🗑️ Resetting all data...');
+            this.resetData();
+            location.reload();
+        }
+    }
+    
     updateDisplay() {
         this.updateSectionContent(this.currentSection);
+    }
+
+    // ============ SIMPLE DAY SKIP FOR TESTING ============
+    skipDay() {
+        // Simulate a real day passing by advancing currentDate
+        this.currentDate.setDate(this.currentDate.getDate() + 1);
+        
+        // Update lastCheck to the new "current" time to prevent auto-advance
+        this.user.lastCheck = new Date(this.currentDate).toISOString();
+        
+        // Recalculate everything as if a real day passed
+        this.calculateStreaksAndStats();
+        this.saveToStorage();
+        this.updateDisplay();
+        
+        // Force update the date display to show "Today" if we're now on real today
+        this.updateCurrentDate();
     }
 }
 
 // Initialize the app when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.doppelgangerApp = new DoppelgangerApp();
+    window.app = window.doppelgangerApp;
 });
 
 // Add CSS for dynamic elements
