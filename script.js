@@ -1,17 +1,17 @@
-// Doppelganger App - Main JavaScript
+// Doppelganger App - Fully Functional Version
 
 class DoppelgangerApp {
     constructor() {
         this.habits = {
-            reading: { name: 'Read 30 minutes', points: 10, icon: '📚', streak: 0, completed: false },
-            screentime: { name: 'Screen time <2 hours', points: 10, icon: '📵', streak: 0, completed: false },
-            gym: { name: 'Gym session', points: 15, icon: '💪', streak: 0, completed: false },
-            sleep: { name: 'Sleep 7-9 hours', points: 10, icon: '😴', streak: 0, completed: false },
-            deepwork: { name: '90 min deep work', points: 15, icon: '🎯', streak: 0, completed: false },
-            cardio: { name: '20 min cardio', points: 10, icon: '🏃‍♂️', streak: 0, completed: false },
-            meditation: { name: 'Meditate 10 min', points: 5, icon: '🧘', streak: 0, completed: false },
-            coldshower: { name: 'Cold shower', points: 5, icon: '❄️', streak: 0, completed: false },
-            nutrition: { name: 'No sugar/processed food', points: 15, icon: '🍽️', streak: 0, completed: false }
+            reading: { name: 'Read 30 minutes', points: 10, icon: '📚' },
+            screentime: { name: 'Screen time <2 hours', points: 10, icon: '📵' },
+            gym: { name: 'Gym session', points: 15, icon: '💪' },
+            sleep: { name: 'Sleep 7-9 hours', points: 10, icon: '😴' },
+            deepwork: { name: '90 min deep work', points: 15, icon: '🎯' },
+            cardio: { name: '20 min cardio', points: 10, icon: '🏃‍♂️' },
+            meditation: { name: 'Meditate 10 min', points: 5, icon: '🧘' },
+            coldshower: { name: 'Cold shower', points: 5, icon: '❄️' },
+            nutrition: { name: 'No sugar/processed food', points: 15, icon: '🍽️' }
         };
 
         this.user = {
@@ -20,7 +20,6 @@ class DoppelgangerApp {
             experience: 0,
             totalPoints: 0,
             monthlyPoints: 0,
-            currentStreak: 0,
             tier: 'bronze',
             avatar: {
                 strength: 100,
@@ -43,7 +42,7 @@ class DoppelgangerApp {
             dailyScore: 0,
             maxScore: 500,
             grade: 'Poor',
-            multiplier: 0.90
+            multiplier: 1.00
         };
 
         this.battle = {
@@ -67,16 +66,177 @@ class DoppelgangerApp {
         this.currentDate = new Date();
         this.currentSection = 'dashboard';
         
+        // Data structure: { 'YYYY-MM-DD': { habits: {}, completed: [], points: 0 } }
+        this.dailyData = {};
+        
         this.init();
     }
 
     init() {
+        this.loadFromStorage();
         this.setupEventListeners();
         this.updateDisplay();
         this.startTimers();
-        this.loadInitialData();
+        this.calculateStreaksAndStats();
     }
 
+    // ============ STORAGE METHODS ============
+    saveToStorage() {
+        const data = {
+            user: this.user,
+            doppelganger: this.doppelganger,
+            team: this.team,
+            achievements: this.achievements,
+            dailyData: this.dailyData,
+            battle: this.battle
+        };
+        
+        try {
+            const compressed = JSON.stringify(data);
+            localStorage.setItem('doppelganger_data', compressed);
+        } catch (error) {
+            console.error('Failed to save data:', error);
+        }
+    }
+
+    loadFromStorage() {
+        try {
+            const saved = localStorage.getItem('doppelganger_data');
+            if (saved) {
+                const data = JSON.parse(saved);
+                
+                // Merge saved data with defaults
+                this.user = { ...this.user, ...data.user };
+                this.doppelganger = { ...this.doppelganger, ...data.doppelganger };
+                this.team = { ...this.team, ...data.team };
+                this.achievements = { ...this.achievements, ...data.achievements };
+                this.dailyData = data.dailyData || {};
+                this.battle = { ...this.battle, ...data.battle };
+            }
+        } catch (error) {
+            console.error('Failed to load data:', error);
+            // Start fresh if data is corrupted
+            this.resetData();
+        }
+    }
+
+    resetData() {
+        localStorage.removeItem('doppelganger_data');
+        this.dailyData = {};
+        this.saveToStorage();
+    }
+
+    // ============ DATE MANAGEMENT ============
+    formatDate(date) {
+        return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    }
+
+    getCurrentDateKey() {
+        return this.formatDate(this.currentDate);
+    }
+
+    getTodayKey() {
+        return this.formatDate(new Date());
+    }
+
+    getDailyData(dateKey) {
+        if (!this.dailyData[dateKey]) {
+            this.dailyData[dateKey] = {
+                habits: {},
+                completed: [],
+                points: 0,
+                timestamp: Date.now()
+            };
+        }
+        return this.dailyData[dateKey];
+    }
+
+    // ============ STREAK CALCULATION ============
+    calculateStreaksAndStats() {
+        const today = new Date();
+        const todayKey = this.formatDate(today);
+        
+        // Reset user stats
+        this.user.totalPoints = 0;
+        this.user.monthlyPoints = 0;
+        
+        // Calculate monthly points (last 30 days)
+        for (let i = 0; i < 30; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateKey = this.formatDate(date);
+            const data = this.dailyData[dateKey];
+            
+            if (data) {
+                if (i === 0) {
+                    this.user.totalPoints += data.points || 0;
+                }
+                this.user.monthlyPoints += data.points || 0;
+            }
+        }
+
+        // Calculate streaks for each habit
+        Object.keys(this.habits).forEach(habitId => {
+            let streak = 0;
+            let checkDate = new Date(today);
+            
+            // Look backwards from today to find consecutive completions
+            while (true) {
+                const dateKey = this.formatDate(checkDate);
+                const dayData = this.dailyData[dateKey];
+                
+                if (dayData && dayData.completed && dayData.completed.includes(habitId)) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            
+            this.habits[habitId].streak = streak;
+        });
+
+        // Calculate current overall streak
+        this.user.currentStreak = this.calculateCurrentStreak();
+        
+        // Update tier based on monthly points
+        this.updateTierProgression();
+        
+        // Check achievements
+        this.checkAchievements();
+        
+        this.saveToStorage();
+    }
+
+    calculateCurrentStreak() {
+        const today = new Date();
+        let streak = 0;
+        let checkDate = new Date(today);
+        
+        while (true) {
+            const dateKey = this.formatDate(checkDate);
+            const dayData = this.dailyData[dateKey];
+            
+            if (dayData && dayData.completed) {
+                const totalHabits = Object.keys(this.habits).length;
+                const completedHabits = dayData.completed.length;
+                
+                // Consider it a streak day if at least 70% of habits completed
+                if (completedHabits >= Math.ceil(totalHabits * 0.7)) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        
+        return streak;
+    }
+
+    // ============ EVENT LISTENERS ============
     setupEventListeners() {
         // Navigation
         document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -184,19 +344,24 @@ class DoppelgangerApp {
         }
     }
 
+    // ============ HABIT MANAGEMENT ============
     toggleHabit(habitId, completed) {
         if (!this.habits[habitId]) return;
 
+        const dateKey = this.getCurrentDateKey();
+        const dayData = this.getDailyData(dateKey);
+        
+        if (!dayData.completed) {
+            dayData.completed = [];
+        }
+
         const habit = this.habits[habitId];
-        const wasCompleted = habit.completed;
-        habit.completed = completed;
+        const wasCompleted = dayData.completed.includes(habitId);
 
         if (completed && !wasCompleted) {
             // Habit completed
-            habit.streak += 1;
-            this.user.experience += habit.points;
-            this.user.totalPoints += habit.points;
-            this.user.monthlyPoints += habit.points;
+            dayData.completed.push(habitId);
+            dayData.points = (dayData.points || 0) + habit.points;
             
             // Update avatar strength
             this.user.avatar.strength += 2;
@@ -206,9 +371,8 @@ class DoppelgangerApp {
             
         } else if (!completed && wasCompleted) {
             // Habit uncompleted
-            this.user.experience = Math.max(0, this.user.experience - habit.points);
-            this.user.totalPoints = Math.max(0, this.user.totalPoints - habit.points);
-            this.user.monthlyPoints = Math.max(0, this.user.monthlyPoints - habit.points);
+            dayData.completed = dayData.completed.filter(id => id !== habitId);
+            dayData.points = Math.max(0, (dayData.points || 0) - habit.points);
             
             // Reduce avatar strength
             this.user.avatar.strength = Math.max(50, this.user.avatar.strength - 2);
@@ -217,12 +381,15 @@ class DoppelgangerApp {
             this.doppelganger.influence = Math.min(100, this.doppelganger.influence + 5);
         }
 
+        // Recalculate streaks and stats
+        this.calculateStreaksAndStats();
+        
         this.updateHabitCard(habitId);
         this.updateDailySummary();
         this.updateAvatarSystem();
-        this.updateTierProgression();
-        this.checkAchievements();
         this.updateQuickStats();
+        
+        this.saveToStorage();
     }
 
     updateHabitCard(habitId) {
@@ -234,27 +401,90 @@ class DoppelgangerApp {
 
         if (!card) return;
 
-        checkbox.checked = habit.completed;
-        streakElement.textContent = habit.streak;
+        const dateKey = this.getCurrentDateKey();
+        const dayData = this.getDailyData(dateKey);
+        const isCompleted = dayData.completed && dayData.completed.includes(habitId);
+
+        checkbox.checked = isCompleted;
+        streakElement.textContent = habit.streak || 0;
 
         // Update card appearance
-        if (habit.completed) {
+        if (isCompleted) {
             card.classList.add('completed');
         } else {
             card.classList.remove('completed');
         }
 
         // Update progress bar (based on streak)
-        const progressWidth = Math.min(100, (habit.streak / 30) * 100);
+        const progressWidth = Math.min(100, ((habit.streak || 0) / 30) * 100);
         progressElement.style.width = `${progressWidth}%`;
     }
 
+    changeDate(direction) {
+        const newDate = new Date(this.currentDate);
+        newDate.setDate(newDate.getDate() + direction);
+        
+        // Don't allow future dates beyond today
+        const today = new Date();
+        today.setHours(23, 59, 59, 999); // End of today
+        
+        if (newDate > today) return;
+        
+        this.currentDate = newDate;
+        this.updateCurrentDate();
+        this.updateHabitsSection();
+        this.updateDashboard();
+    }
+
+    updateCurrentDate() {
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        };
+        const today = new Date();
+        const isToday = this.currentDate.toDateString() === today.toDateString();
+        
+        document.getElementById('currentDate').textContent = isToday ? 
+            'Today' : 
+            this.currentDate.toLocaleDateString('en-US', options);
+    }
+
+    // ============ UI UPDATES ============
+    updateDashboard() {
+        this.updateAvatarSystem();
+        this.updateDailySummary();
+        this.updateQuickStats();
+        this.updateHabitQuickList();
+    }
+
+    updateHabitQuickList() {
+        const quickList = document.getElementById('habitQuickList');
+        quickList.innerHTML = '';
+
+        const dateKey = this.getCurrentDateKey();
+        const dayData = this.getDailyData(dateKey);
+
+        Object.entries(this.habits).forEach(([id, habit]) => {
+            const isCompleted = dayData.completed && dayData.completed.includes(id);
+            const item = document.createElement('div');
+            item.className = `habit-quick-item ${isCompleted ? 'completed' : ''}`;
+            item.innerHTML = `
+                <span class="habit-icon">${habit.icon}</span>
+                <span class="habit-name">${habit.name}</span>
+                <span class="habit-status">${isCompleted ? '✅' : '⭕'}</span>
+            `;
+            quickList.appendChild(item);
+        });
+    }
+
     updateDailySummary() {
-        const completedHabits = Object.values(this.habits).filter(h => h.completed).length;
+        const dateKey = this.getCurrentDateKey();
+        const dayData = this.getDailyData(dateKey);
+        const completedHabits = dayData.completed ? dayData.completed.length : 0;
         const totalHabits = Object.keys(this.habits).length;
-        const basePoints = Object.values(this.habits)
-            .filter(h => h.completed)
-            .reduce((sum, h) => sum + h.points, 0);
+        const basePoints = dayData.points || 0;
         
         const teamBonus = this.team.multiplier;
         const finalScore = Math.round(basePoints * teamBonus);
@@ -273,7 +503,9 @@ class DoppelgangerApp {
     }
 
     updateAvatarSystem() {
-        const completedHabits = Object.values(this.habits).filter(h => h.completed).length;
+        const dateKey = this.getCurrentDateKey();
+        const dayData = this.getDailyData(dateKey);
+        const completedHabits = dayData.completed ? dayData.completed.length : 0;
         const totalHabits = Object.keys(this.habits).length;
         const completionRatio = completedHabits / totalHabits;
 
@@ -327,11 +559,10 @@ class DoppelgangerApp {
         this.user.level += 1;
         this.user.experience = this.user.experience % 100;
         
-        // Show level up animation (you could add a modal or notification here)
-        console.log(`Level up! You are now level ${this.user.level}`);
-        
         // Increase avatar base strength
         this.user.avatar.strength += 10;
+        
+        this.saveToStorage();
     }
 
     updateTierProgression() {
@@ -385,45 +616,13 @@ class DoppelgangerApp {
     }
 
     updateQuickStats() {
-        // Calculate current streak
-        const allCompleted = Object.values(this.habits).every(h => h.completed);
-        if (allCompleted) {
-            this.user.currentStreak += 1;
-        }
-
+        const todayKey = this.getTodayKey();
+        const todayData = this.getDailyData(todayKey);
+        
         document.getElementById('currentStreak').textContent = this.user.currentStreak;
         document.getElementById('monthlyPoints').textContent = this.user.monthlyPoints;
-        document.getElementById('dailyScore').textContent = `${this.calculateDailyScore()} pts`;
-    }
-
-    calculateDailyScore() {
-        const basePoints = Object.values(this.habits)
-            .filter(h => h.completed)
-            .reduce((sum, h) => sum + h.points, 0);
-        return Math.round(basePoints * this.team.multiplier);
-    }
-
-    updateDashboard() {
-        this.updateAvatarSystem();
-        this.updateDailySummary();
-        this.updateQuickStats();
-        this.updateHabitQuickList();
-    }
-
-    updateHabitQuickList() {
-        const quickList = document.getElementById('habitQuickList');
-        quickList.innerHTML = '';
-
-        Object.entries(this.habits).forEach(([id, habit]) => {
-            const item = document.createElement('div');
-            item.className = `habit-quick-item ${habit.completed ? 'completed' : ''}`;
-            item.innerHTML = `
-                <span class="habit-icon">${habit.icon}</span>
-                <span class="habit-name">${habit.name}</span>
-                <span class="habit-status">${habit.completed ? '✅' : '⭕'}</span>
-            `;
-            quickList.appendChild(item);
-        });
+        document.getElementById('dailyScore').textContent = `${todayData.points || 0} pts`;
+        document.getElementById('teamRank').textContent = this.team.id ? '#3' : '#--';
     }
 
     updateHabitsSection() {
@@ -434,33 +633,7 @@ class DoppelgangerApp {
         this.updateCurrentDate();
     }
 
-    updateCurrentDate() {
-        const options = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        };
-        const today = new Date();
-        const isToday = this.currentDate.toDateString() === today.toDateString();
-        
-        document.getElementById('currentDate').textContent = isToday ? 
-            'Today' : 
-            this.currentDate.toLocaleDateString('en-US', options);
-    }
-
-    changeDate(direction) {
-        const newDate = new Date(this.currentDate);
-        newDate.setDate(newDate.getDate() + direction);
-        
-        // Don't allow future dates
-        if (newDate > new Date()) return;
-        
-        this.currentDate = newDate;
-        this.updateCurrentDate();
-        // In a real app, you'd load data for this date
-    }
-
+    // ============ TEAM SYSTEM ============
     updateTeamSection() {
         this.updateTeamStats();
         this.updateTeamMembers();
@@ -468,9 +641,22 @@ class DoppelgangerApp {
     }
 
     updateTeamStats() {
-        // Simulate team score calculation
-        this.team.dailyScore = Math.min(this.team.maxScore, 
-            this.calculateDailyScore() + Math.floor(Math.random() * 400));
+        if (!this.team.id) {
+            document.getElementById('collectiveFill').style.width = '0%';
+            document.getElementById('teamScore').textContent = '0';
+            document.getElementById('teamGrade').textContent = '🔴 No Team';
+            document.getElementById('teamMultiplier').textContent = '×1.00';
+            return;
+        }
+
+        // Simulate basic team scoring if in a team
+        const todayKey = this.getTodayKey();
+        const todayData = this.getDailyData(todayKey);
+        const userScore = todayData.points || 0;
+        
+        // Simulate other member scores (in real app, this would come from server)
+        const teamScore = userScore + 150; // Simulated team contribution
+        this.team.dailyScore = Math.min(this.team.maxScore, teamScore);
 
         const scorePercentage = (this.team.dailyScore / this.team.maxScore) * 100;
         document.getElementById('collectiveFill').style.width = `${scorePercentage}%`;
@@ -488,7 +674,7 @@ class DoppelgangerApp {
             this.team.multiplier = 1.00;
         } else {
             this.team.grade = '🔴 Poor';
-            this.team.multiplier = 0.90;
+            this.team.multiplier = 0.95;
         }
 
         document.getElementById('teamGrade').textContent = this.team.grade;
@@ -498,7 +684,6 @@ class DoppelgangerApp {
     updateTeamMembers() {
         const memberSlots = document.querySelectorAll('.member-slot');
         
-        // If no team, show empty slots
         if (!this.team.id) {
             memberSlots.forEach((slot, index) => {
                 slot.classList.add('empty');
@@ -508,19 +693,21 @@ class DoppelgangerApp {
             return;
         }
 
-        // Show team members (simulated for demo)
-        const demoMembers = [
-            { name: 'You', score: this.calculateDailyScore() },
-            { name: 'Alex_Warrior', score: 85 },
-            { name: 'ZenMaster_42', score: 78 },
-            { name: 'IronWill_23', score: 92 }
+        // Show user and simulate other members
+        const todayKey = this.getTodayKey();
+        const todayData = this.getDailyData(todayKey);
+        const userScore = todayData.points || 0;
+        
+        const members = [
+            { name: 'You', score: userScore },
+            ...this.team.members.slice(1)
         ];
 
         memberSlots.forEach((slot, index) => {
-            if (index < demoMembers.length) {
+            if (index < members.length) {
                 slot.classList.remove('empty');
-                slot.querySelector('.member-name').textContent = demoMembers[index].name;
-                slot.querySelector('.member-score').textContent = `${demoMembers[index].score} pts`;
+                slot.querySelector('.member-name').textContent = members[index].name;
+                slot.querySelector('.member-score').textContent = `${members[index].score} pts`;
                 slot.querySelector('.member-avatar').classList.remove('placeholder');
             } else {
                 slot.classList.add('empty');
@@ -539,17 +726,17 @@ class DoppelgangerApp {
             return;
         }
 
-        // Simulated leaderboard data
+        // Basic leaderboard simulation
         const teams = [
             { name: 'Elite Squad', score: 2340, rank: 1 },
             { name: 'Habit Hackers', score: 2180, rank: 2 },
-            { name: 'Your Team', score: this.team.dailyScore * 7, rank: 3 },
+            { name: this.team.name, score: this.team.dailyScore * 7, rank: 3 },
             { name: 'Morning Warriors', score: 1950, rank: 4 },
             { name: 'Discipline Devils', score: 1890, rank: 5 }
         ];
 
         leaderboard.innerHTML = teams.map(team => `
-            <div class="leaderboard-item ${team.name === 'Your Team' ? 'current-team' : ''}">
+            <div class="leaderboard-item ${team.name === this.team.name ? 'current-team' : ''}">
                 <div class="team-rank">#${team.rank}</div>
                 <div class="team-name">${team.name}</div>
                 <div class="team-score">${team.score} pts</div>
@@ -557,6 +744,7 @@ class DoppelgangerApp {
         `).join('');
     }
 
+    // ============ TEAM MODALS ============
     showTeamModal(tab = 'create') {
         document.getElementById('modalOverlay').classList.add('active');
         this.switchModalTab(tab);
@@ -587,7 +775,7 @@ class DoppelgangerApp {
             return;
         }
 
-        // Simulate team creation
+        // Create team
         this.team.id = 'team_' + Date.now();
         this.team.name = teamName;
         this.team.members = [{ name: 'You', score: 0 }];
@@ -597,7 +785,8 @@ class DoppelgangerApp {
 
         this.hideTeamModal();
         this.updateTeamSection();
-        alert(`Team "${teamName}" created successfully!`);
+        this.saveToStorage();
+        alert(`Team "${teamName}" created successfully! Share code: ${this.team.id}`);
     }
 
     joinTeam() {
@@ -608,19 +797,25 @@ class DoppelgangerApp {
             return;
         }
 
-        // Simulate joining team
+        // Join team (in real app, would validate with server)
         this.team.id = teamCode;
-        this.team.name = 'Joined Team';
-        this.team.members = [{ name: 'You', score: 0 }];
+        this.team.name = 'Team ' + teamCode.substring(5, 10);
+        this.team.members = [
+            { name: 'You', score: 0 },
+            { name: 'TeamMate_1', score: 45 },
+            { name: 'TeamMate_2', score: 38 }
+        ];
 
         // Mark team player achievement
         this.achievements['team-player'] = true;
 
         this.hideTeamModal();
         this.updateTeamSection();
+        this.saveToStorage();
         alert('Successfully joined team!');
     }
 
+    // ============ PROGRESS SECTION ============
     updateProgressSection() {
         this.updateTierProgression();
         this.updateCharts();
@@ -628,8 +823,7 @@ class DoppelgangerApp {
     }
 
     updateCharts() {
-        // Placeholder for chart updates
-        // In a real implementation, you'd use a charting library like Chart.js
+        // Basic chart data visualization
         const pointsChart = document.querySelector('#pointsChart canvas');
         const habitsChart = document.querySelector('#habitsChart canvas');
         
@@ -637,14 +831,53 @@ class DoppelgangerApp {
             const ctx1 = pointsChart.getContext('2d');
             const ctx2 = habitsChart.getContext('2d');
             
-            // Simple placeholder visualization
+            // Clear canvases
             ctx1.clearRect(0, 0, pointsChart.width, pointsChart.height);
-            ctx1.fillStyle = '#00d4ff';
-            ctx1.fillText('Points Chart - Coming Soon', 150, 100);
-            
             ctx2.clearRect(0, 0, habitsChart.width, habitsChart.height);
+            
+            // Draw simple line for points over time
+            ctx1.strokeStyle = '#00d4ff';
+            ctx1.lineWidth = 2;
+            ctx1.beginPath();
+            
+            const days = 7;
+            for (let i = 0; i < days; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() - (days - 1 - i));
+                const dateKey = this.formatDate(date);
+                const dayData = this.dailyData[dateKey];
+                const points = dayData ? dayData.points || 0 : 0;
+                
+                const x = (i / (days - 1)) * (pointsChart.width - 40) + 20;
+                const y = pointsChart.height - 20 - (points / 100) * (pointsChart.height - 40);
+                
+                if (i === 0) {
+                    ctx1.moveTo(x, y);
+                } else {
+                    ctx1.lineTo(x, y);
+                }
+            }
+            ctx1.stroke();
+            
+            // Draw completion rate
             ctx2.fillStyle = '#00ff88';
-            ctx2.fillText('Habits Chart - Coming Soon', 150, 100);
+            const today = new Date();
+            for (let i = 0; i < days; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() - (days - 1 - i));
+                const dateKey = this.formatDate(date);
+                const dayData = this.dailyData[dateKey];
+                const completedCount = dayData && dayData.completed ? dayData.completed.length : 0;
+                const totalHabits = Object.keys(this.habits).length;
+                const completionRate = completedCount / totalHabits;
+                
+                const barWidth = (habitsChart.width - 40) / days;
+                const barHeight = completionRate * (habitsChart.height - 40);
+                const x = 20 + i * barWidth + barWidth * 0.1;
+                const y = habitsChart.height - 20 - barHeight;
+                
+                ctx2.fillRect(x, y, barWidth * 0.8, barHeight);
+            }
         }
     }
 
@@ -654,7 +887,6 @@ class DoppelgangerApp {
         });
         document.querySelector(`[data-period="${period}"]`).classList.add('active');
         
-        // Update charts based on period
         this.updateCharts();
     }
 
@@ -676,8 +908,12 @@ class DoppelgangerApp {
         }
 
         // Perfect Day
-        const allCompleted = Object.values(this.habits).every(h => h.completed);
-        if (allCompleted) {
+        const todayKey = this.getTodayKey();
+        const todayData = this.getDailyData(todayKey);
+        const totalHabits = Object.keys(this.habits).length;
+        const completedToday = todayData.completed ? todayData.completed.length : 0;
+        
+        if (completedToday === totalHabits) {
             this.achievements['perfect-day'] = true;
         }
 
@@ -686,12 +922,13 @@ class DoppelgangerApp {
             this.achievements['streak-master'] = true;
         }
 
-        // Top Performer (simulated)
+        // Top Performer
         if (this.user.monthlyPoints > 5000) {
             this.achievements['top-performer'] = true;
         }
     }
 
+    // ============ BATTLE SYSTEM ============
     updateBattleSection() {
         this.updateBattleTimer();
         this.updateBattleArena();
@@ -699,19 +936,23 @@ class DoppelgangerApp {
     }
 
     updateBattleTimer() {
-        // Calculate time until next Monday
         const now = new Date();
-        const nextMonday = new Date();
-        nextMonday.setDate(now.getDate() + (1 + 7 - now.getDay()) % 7);
+        
+        // Calculate next Monday at midnight
+        const nextMonday = new Date(now);
+        const daysUntilMonday = (1 + 7 - now.getDay()) % 7 || 7; // 0 if today is Monday, 7 if today is Tuesday-Sunday
+        nextMonday.setDate(now.getDate() + daysUntilMonday);
         nextMonday.setHours(0, 0, 0, 0);
-
+        
         const timeUntil = nextMonday.getTime() - now.getTime();
+        
         const days = Math.floor(timeUntil / (1000 * 60 * 60 * 24));
         const hours = Math.floor((timeUntil % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((timeUntil % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeUntil % (1000 * 60)) / 1000);
 
         document.getElementById('battleTimer').textContent = 
-            `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
 
     updateBattleArena() {
@@ -721,18 +962,47 @@ class DoppelgangerApp {
         document.getElementById('avatarPower').textContent = `Power: ${Math.round(avatarPower)}`;
         document.getElementById('shadowPower').textContent = `Power: ${Math.round(shadowPower)}`;
 
-        // Update battle status
-        if (this.battle.active) {
-            document.getElementById('battleStatus').textContent = 'Battle In Progress';
-            document.getElementById('battleRound').textContent = `Round ${this.battle.round}/${this.battle.maxRounds}`;
+        // Update battle status based on weekly performance
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
+        
+        let weeklyCompletion = 0;
+        let daysChecked = 0;
+        
+        for (let i = 0; i < 7; i++) {
+            const checkDate = new Date(startOfWeek);
+            checkDate.setDate(startOfWeek.getDate() + i);
+            
+            if (checkDate <= now) {
+                const dateKey = this.formatDate(checkDate);
+                const dayData = this.dailyData[dateKey];
+                const completed = dayData && dayData.completed ? dayData.completed.length : 0;
+                const total = Object.keys(this.habits).length;
+                weeklyCompletion += completed / total;
+                daysChecked++;
+            }
+        }
+        
+        const avgCompletion = daysChecked > 0 ? weeklyCompletion / daysChecked : 0;
+        
+        if (avgCompletion >= 0.8) {
+            document.getElementById('battleStatus').textContent = 'Victory Imminent';
+            this.battle.playerHealth = 100;
+            this.battle.doppelgangerHealth = Math.max(20, 100 - (avgCompletion * 80));
+        } else if (avgCompletion >= 0.5) {
+            document.getElementById('battleStatus').textContent = 'Fierce Battle';
+            this.battle.playerHealth = 60 + (avgCompletion * 40);
+            this.battle.doppelgangerHealth = 40 + ((1 - avgCompletion) * 60);
         } else {
-            document.getElementById('battleStatus').textContent = 'Preparing for Battle';
-            document.getElementById('battleRound').textContent = 'Waiting...';
+            document.getElementById('battleStatus').textContent = 'Shadow Winning';
+            this.battle.playerHealth = Math.max(20, avgCompletion * 100);
+            this.battle.doppelgangerHealth = 100;
         }
 
-        // Update health bars
-        document.getElementById('avatarHealth').textContent = `${this.battle.playerHealth}%`;
-        document.getElementById('doppelgangerHealth').textContent = `${this.battle.doppelgangerHealth}%`;
+        document.getElementById('battleRound').textContent = `Day ${Math.min(7, daysChecked)}/7`;
+        document.getElementById('avatarHealth').textContent = `${Math.round(this.battle.playerHealth)}%`;
+        document.getElementById('doppelgangerHealth').textContent = `${Math.round(this.battle.doppelgangerHealth)}%`;
     }
 
     updateBattleHistory() {
@@ -758,83 +1028,90 @@ class DoppelgangerApp {
         `).join('');
     }
 
+    // ============ TIMERS ============
     startTimers() {
-        // Update battle timer every minute
+        // Update battle timer every second
         setInterval(() => {
             if (this.currentSection === 'battle') {
                 this.updateBattleTimer();
             }
-        }, 60000);
+        }, 1000);
 
-        // Daily reset check
+        // Daily reset and battle check
         setInterval(() => {
             this.checkDailyReset();
-        }, 60000 * 60); // Check every hour
+            this.checkWeeklyBattle();
+        }, 60000); // Check every minute
     }
 
     checkDailyReset() {
         const now = new Date();
-        const lastReset = new Date(this.currentDate);
+        const lastCheck = new Date(this.user.lastCheck || now);
         
-        if (now.getDate() !== lastReset.getDate()) {
-            this.performDailyReset();
+        // If it's a new day
+        if (now.getDate() !== lastCheck.getDate() || 
+            now.getMonth() !== lastCheck.getMonth() || 
+            now.getFullYear() !== lastCheck.getFullYear()) {
+            
+            this.user.lastCheck = now.toISOString();
+            this.calculateStreaksAndStats();
+            this.saveToStorage();
         }
     }
 
-    performDailyReset() {
-        // Reset daily habits
-        Object.keys(this.habits).forEach(habitId => {
-            if (!this.habits[habitId].completed) {
-                // Missed habit - break streak and strengthen doppelganger
-                this.habits[habitId].streak = 0;
-                this.doppelganger.influence += 5;
-                this.doppelganger.strength += 2;
-            }
-            this.habits[habitId].completed = false;
-        });
-
-        // Update current date
-        this.currentDate = new Date();
+    checkWeeklyBattle() {
+        const now = new Date();
         
-        // Update display
-        this.updateDisplay();
+        // Check if it's Monday and we haven't processed this week's battle
+        if (now.getDay() === 1 && !this.battle.lastBattleWeek) {
+            this.processBattleResult();
+        }
+    }
+
+    processBattleResult() {
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - 7);
+        
+        let weeklyScore = 0;
+        let daysCount = 0;
+        
+        // Calculate last week's performance
+        for (let i = 0; i < 7; i++) {
+            const checkDate = new Date(weekStart);
+            checkDate.setDate(weekStart.getDate() + i);
+            const dateKey = this.formatDate(checkDate);
+            const dayData = this.dailyData[dateKey];
+            
+            if (dayData) {
+                weeklyScore += dayData.points || 0;
+                daysCount++;
+            }
+        }
+        
+        const avgScore = daysCount > 0 ? weeklyScore / daysCount : 0;
+        const shadowScore = Math.max(30, 70 - avgScore); // Shadow gets stronger when you're weaker
+        
+        const result = avgScore > shadowScore ? 'Victory' : 'Defeat';
+        
+        this.battle.history.unshift({
+            date: weekStart.toLocaleDateString(),
+            result: result,
+            playerScore: Math.round(avgScore),
+            doppelgangerScore: Math.round(shadowScore)
+        });
+        
+        // Keep only last 10 battles
+        if (this.battle.history.length > 10) {
+            this.battle.history = this.battle.history.slice(0, 10);
+        }
+        
+        this.battle.lastBattleWeek = this.formatDate(weekStart);
+        this.saveToStorage();
     }
 
     updateDisplay() {
         this.updateSectionContent(this.currentSection);
-    }
-
-    loadInitialData() {
-        // In a real app, this would load from a backend
-        // For demo, we'll simulate some initial data
-        
-        // Simulate some streak data
-        this.habits.reading.streak = 3;
-        this.habits.gym.streak = 5;
-        this.habits.meditation.streak = 2;
-        
-        // Set some initial points
-        this.user.monthlyPoints = 450;
-        this.user.currentStreak = 3;
-        
-        // Initial display update
-        this.updateDisplay();
-    }
-
-    // Utility method to simulate team data
-    simulateTeamData() {
-        if (this.team.id) {
-            // Simulate other team members' daily scores
-            const memberScores = [
-                Math.floor(Math.random() * 95) + 50,
-                Math.floor(Math.random() * 95) + 50,
-                Math.floor(Math.random() * 95) + 50,
-                Math.floor(Math.random() * 95) + 50
-            ];
-            
-            this.team.dailyScore = this.calculateDailyScore() + 
-                memberScores.reduce((sum, score) => sum + score, 0);
-        }
     }
 }
 
@@ -843,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.doppelgangerApp = new DoppelgangerApp();
 });
 
-// Add some CSS for dynamic elements
+// Add CSS for dynamic elements
 const style = document.createElement('style');
 style.textContent = `
     .habit-quick-item {
