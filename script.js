@@ -1,4 +1,4 @@
-// Doppelganger App - Enhanced Power System
+// Doppelganger App - Complete Enhanced Power System with Tier-based Punishment
 
 class DoppelgangerApp {
     constructor() {
@@ -11,7 +11,7 @@ class DoppelgangerApp {
             cardio: { name: '20 min cardio', points: 10, icon: '🏃‍♂️' },
             meditation: { name: 'Meditate 10 min', points: 5, icon: '🧘' },
             coldshower: { name: 'Cold shower', points: 5, icon: '❄️' },
-            nutrition: { name: 'No sugar/processed food', points: 15, icon: '🍽️' }
+            nutrition: { name: 'No sugar/processed food', points: 10, icon: '🍽️' }
         };
 
         this.user = {
@@ -178,7 +178,7 @@ class DoppelgangerApp {
                     this.viewingDate = new Date();
                 }
                 
-                // Ensure powerPoints exist (backward compatibility)
+                // Ensure backward compatibility
                 if (this.user.powerPoints === undefined) {
                     this.user.powerPoints = 0;
                 }
@@ -222,10 +222,82 @@ class DoppelgangerApp {
                 completed: [],
                 points: 0,
                 timestamp: Date.now(),
-                processed: false // Track if missed habits have been processed
+                processed: false, // Track if missed habits have been processed for doppelganger
+                punishmentProcessed: false // Track if punishment for missed habits has been applied
             };
         }
         return this.dailyData[dateKey];
+    }
+
+    // ============ TIER SYSTEM ============
+    getCurrentTier() {
+        // Tier based on current total points (can go up or down)
+        const total = this.user.totalPoints;
+        
+        if (total >= 15000) return 'goggins';
+        if (total >= 7500) return 'diamond';
+        if (total >= 5000) return 'platinum';
+        if (total >= 2500) return 'gold';
+        if (total >= 1000) return 'silver';
+        return 'bronze';
+    }
+
+    getTierLevel(tierName) {
+        const levels = { bronze: 0, silver: 1, gold: 2, platinum: 3, diamond: 4, goggins: 5 };
+        return levels[tierName] || 0;
+    }
+
+    getTierMultiplier(tierName) {
+        // Punishment multipliers for missed habits
+        switch(tierName) {
+            case 'bronze': return 0;    // No punishment
+            case 'silver': return 0.5;  // 0.5x missed points
+            case 'gold': return 1;      // 1x missed points  
+            case 'platinum': return 2;  // 2x missed points
+            case 'diamond': return 3;   // 3x missed points
+            case 'goggins': return 4;   // 4x missed points
+            default: return 0;
+        }
+    }
+
+    applyPreviousDayPunishment() {
+        // Apply punishment for ALL previous unprocessed days
+        const today = new Date(this.currentDate);
+        const allDates = Object.keys(this.dailyData).sort();
+        
+        for (const dateKey of allDates) {
+            const dayData = this.dailyData[dateKey];
+            const dayDate = new Date(dateKey);
+            const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
+            
+            // Only process past days that haven't been processed yet
+            if (daysDifference > 0 && !dayData.punishmentProcessed) {
+                const completedHabits = dayData.completed || [];
+                const totalHabits = Object.keys(this.habits);
+                const missedHabits = totalHabits.filter(habitId => !completedHabits.includes(habitId));
+                
+                if (missedHabits.length > 0) {
+                    // Calculate missed points
+                    const missedPoints = missedHabits.reduce((sum, habitId) => {
+                        const habit = this.habits[habitId];
+                        return sum + (habit ? habit.points : 0);
+                    }, 0);
+                    
+                    // Get tier when the missed day occurred (for punishment calculation)
+                    const tierAtTime = this.getCurrentTier(); // Use current tier for simplicity
+                    const multiplier = this.getTierMultiplier(tierAtTime);
+                    const punishmentPoints = missedPoints * multiplier;
+                    
+                    if (punishmentPoints > 0) {
+                        this.user.totalPoints -= punishmentPoints;
+                        console.log(`💀 PUNISHMENT: Lost ${punishmentPoints} points for missing ${missedHabits.length} habits on ${dateKey} (${tierAtTime} tier, ${multiplier}x multiplier)`);
+                    }
+                }
+                
+                // Mark as processed
+                dayData.punishmentProcessed = true;
+            }
+        }
     }
 
     // ============ POWER SYSTEM ============
@@ -297,24 +369,21 @@ class DoppelgangerApp {
         // Get all dates and sort them
         const allDates = Object.keys(this.dailyData).sort();
         
-        // Process each day for points and missed habits
+        // First pass: Calculate all completed points normally (no punishment yet)
         for (const dateKey of allDates) {
             const data = this.dailyData[dateKey];
             const dayDate = new Date(dateKey);
             const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
             
             if (data && data.completed) {
-                // Calculate completed habit points
+                // Calculate completed habit points (earned normally)
                 const dayPoints = data.completed.reduce((sum, habitId) => {
                     const habit = this.habits[habitId];
-                    if (habit) {
-                        // Add to user power
-                        this.user.powerPoints += habit.points;
-                        return sum + habit.points;
-                    }
-                    return sum;
+                    return habit ? sum + habit.points : sum;
                 }, 0);
                 
+                // Add points to user power and totals
+                this.user.powerPoints += dayPoints;
                 this.user.totalPoints += dayPoints;
                 
                 // Monthly points (last 30 days from currentDate)
@@ -323,14 +392,17 @@ class DoppelgangerApp {
                 }
             }
             
-            // Process missed habits for days in the past
+            // Process missed habits for doppelganger power (days in the past)
             if (daysDifference > 0) {
                 this.processMissedHabits(dateKey);
             }
         }
+        
+        // Second pass: Apply punishment for previous missed days
+        this.applyPreviousDayPunishment();
 
         // Calculate experience and level
-        this.user.experience = this.user.totalPoints;
+        this.user.experience = Math.max(0, this.user.totalPoints);
         this.calculateLevel();
 
         // Calculate streaks for each habit
@@ -341,7 +413,8 @@ class DoppelgangerApp {
         // Calculate current overall streak
         this.user.currentStreak = this.calculateOverallStreak();
         
-        // Update tier based on monthly points
+        // Update tier based on current total points
+        this.user.tier = this.getCurrentTier();
         this.updateTierProgression();
         
         // Check achievements
@@ -590,18 +663,16 @@ class DoppelgangerApp {
         const wasCompleted = dayData.completed.includes(habitId);
 
         if (completed && !wasCompleted) {
-            // Habit completed - add to user power
+            // Habit completed - recalculate everything to apply tier punishment
             dayData.completed.push(habitId);
-            this.user.powerPoints += habit.points;
             
-            console.log(`✅ Gained ${habit.points} power from completing: ${habit.name}`);
+            console.log(`✅ Completed: ${habit.name}`);
             
         } else if (!completed && wasCompleted) {
-            // Habit uncompleted - remove from user power
+            // Habit uncompleted - recalculate everything
             dayData.completed = dayData.completed.filter(id => id !== habitId);
-            this.user.powerPoints = Math.max(0, this.user.powerPoints - habit.points);
             
-            console.log(`❌ Lost ${habit.points} power from uncompleting: ${habit.name}`);
+            console.log(`❌ Uncompleted: ${habit.name}`);
         }
 
         // Recalculate everything
@@ -709,7 +780,7 @@ class DoppelgangerApp {
         const completedHabits = dayData.completed ? dayData.completed.length : 0;
         const totalHabits = Object.keys(this.habits).length;
         
-        // Calculate points for this specific day
+        // Calculate points for this specific day (earned normally, no punishment applied today)
         const basePoints = dayData.completed ? dayData.completed.reduce((sum, habitId) => {
             const habit = this.habits[habitId];
             return sum + (habit ? habit.points : 0);
@@ -722,6 +793,26 @@ class DoppelgangerApp {
         document.getElementById('pointsEarned').textContent = basePoints;
         document.getElementById('teamBonus').textContent = `+${Math.round((teamBonus - 1) * 100)}%`;
         document.getElementById('finalScore').textContent = finalScore;
+
+        // Show warning about tomorrow's punishment if in higher tier
+        const tier = this.getCurrentTier();
+        const missedHabits = totalHabits - completedHabits;
+        if (tier !== 'bronze' && missedHabits > 0) {
+            const missedPoints = Object.keys(this.habits).filter(habitId => 
+                !dayData.completed || !dayData.completed.includes(habitId)
+            ).reduce((sum, habitId) => {
+                const habit = this.habits[habitId];
+                return sum + (habit ? habit.points : 0);
+            }, 0);
+            
+            const multiplier = this.getTierMultiplier(tier);
+            const tomorrowPunishment = missedPoints * multiplier;
+            
+            if (tomorrowPunishment > 0) {
+                const warningElement = document.getElementById('pointsEarned');
+                warningElement.innerHTML = `${basePoints} <span style="color: var(--accent-red); font-size: 0.8rem;">(-${tomorrowPunishment} tomorrow)</span>`;
+            }
+        }
 
         // Update daily completion circle
         const completionPercentage = Math.round((completedHabits / totalHabits) * 100);
@@ -763,7 +854,7 @@ class DoppelgangerApp {
         doppelgangerShadow.style.opacity = Math.min(1, corruptionLevel + 0.3);
         doppelgangerCorruption.style.opacity = corruptionLevel;
 
-        // Update power balance meter
+        // Update power balance meter using TOTAL ACCUMULATED POWER
         const powerBalance = this.calculatePowerBalance();
         const strengthMeter = document.getElementById('strengthMeter');
         const meterBar = strengthMeter.parentElement;
@@ -796,48 +887,44 @@ class DoppelgangerApp {
         const meterLabels = document.querySelector('.meter-labels');
         if (meterLabels) {
             meterLabels.innerHTML = `
-                <span>You: ${powerBalance.userPower} (${powerBalance.userPercentage}%)</span>
-                <span>Shadow: ${powerBalance.doppelgangerPower} (${powerBalance.doppelgangerPercentage}%)</span>
+                <span>You: ${Math.round(powerBalance.userPower)} (${powerBalance.userPercentage}%)</span>
+                <span>Shadow: ${Math.round(powerBalance.doppelgangerPower)} (${powerBalance.doppelgangerPercentage}%)</span>
             `;
         }
         
-        console.log(`⚡ Power Balance - You: ${powerBalance.userPower} (${powerBalance.userPercentage}%) | Shadow: ${powerBalance.doppelgangerPower} (${powerBalance.doppelgangerPercentage}%)`);
+        console.log(`⚡ Power Balance - You: ${Math.round(powerBalance.userPower)} (${powerBalance.userPercentage}%) | Shadow: ${Math.round(powerBalance.doppelgangerPower)} (${powerBalance.doppelgangerPercentage}%)`);
     }
 
     updateTierProgression() {
         const tiers = [
-            { name: 'bronze', min: 0, max: 1000 },
-            { name: 'silver', min: 1000, max: 2500 },
-            { name: 'gold', min: 2500, max: 5000 },
-            { name: 'platinum', min: 5000, max: 7500 },
-            { name: 'diamond', min: 7500, max: Infinity }
+            { name: 'bronze', min: 0, max: 1000, label: 'Bronze', range: '0 - 1K pts' },
+            { name: 'silver', min: 1000, max: 2500, label: 'Silver', range: '1K - 2.5K pts' },
+            { name: 'gold', min: 2500, max: 5000, label: 'Gold', range: '2.5K - 5K pts' },
+            { name: 'platinum', min: 5000, max: 7500, label: 'Platinum', range: '5K - 7.5K pts' },
+            { name: 'diamond', min: 7500, max: 15000, label: 'Diamond', range: '7.5K - 15K pts' },
+            { name: 'goggins', min: 15000, max: Infinity, label: 'Goggins', range: '15K+ pts' }
         ];
 
-        let currentTier = 'bronze';
-        tiers.forEach(tier => {
-            if (this.user.monthlyPoints >= tier.min) {
-                currentTier = tier.name;
-            }
-        });
-
+        const currentTier = this.getCurrentTier();
         this.user.tier = currentTier;
-
-        // Update tier display
+        
+        // Update tier display in header
         document.getElementById('currentTier').textContent = currentTier.charAt(0).toUpperCase() + currentTier.slice(1);
         document.getElementById('currentTier').className = `current-tier ${currentTier}`;
 
-        // Update tier progress
+        // Calculate progress toward next tier
         const currentTierData = tiers.find(t => t.name === currentTier);
         const nextTierData = tiers[tiers.findIndex(t => t.name === currentTier) + 1];
         
         if (nextTierData) {
-            const progress = ((this.user.monthlyPoints - currentTierData.min) / (nextTierData.min - currentTierData.min)) * 100;
-            document.getElementById('tierProgress').textContent = `${Math.round(progress)}%`;
+            const progress = ((this.user.totalPoints - currentTierData.min) / (nextTierData.min - currentTierData.min)) * 100;
+            const progressClamped = Math.max(0, Math.min(100, progress));
+            document.getElementById('tierProgress').textContent = `${Math.round(progressClamped)}%`;
         } else {
             document.getElementById('tierProgress').textContent = '100%';
         }
 
-        // Update tier ladder
+        // Update tier ladder in progress section
         document.querySelectorAll('.tier').forEach(tier => {
             tier.classList.remove('active');
             const tierName = tier.dataset.tier;
@@ -846,10 +933,13 @@ class DoppelgangerApp {
             if (tierName === currentTier) {
                 tier.classList.add('active');
                 statusElement.textContent = 'Current';
-            } else if (tiers.findIndex(t => t.name === tierName) < tiers.findIndex(t => t.name === currentTier)) {
+            } else if (this.getTierLevel(tierName) < this.getTierLevel(currentTier)) {
                 statusElement.textContent = 'Completed';
             } else {
-                statusElement.textContent = 'Locked';
+                // Show points needed for locked tiers
+                const tierData = tiers.find(t => t.name === tierName);
+                const pointsNeeded = tierData.min - this.user.totalPoints;
+                statusElement.textContent = pointsNeeded > 0 ? `${pointsNeeded} pts needed` : 'Locked';
             }
         });
     }
@@ -857,15 +947,11 @@ class DoppelgangerApp {
     updateQuickStats() {
         const dateKey = this.getCurrentDateKey();
         const dayData = this.getDailyData(dateKey);
-        const todayPoints = dayData.completed ? dayData.completed.reduce((sum, habitId) => {
-            const habit = this.habits[habitId];
-            return sum + (habit ? habit.points : 0);
-        }, 0) : 0;
         
         document.getElementById('currentStreak').textContent = this.user.currentStreak;
-        document.getElementById('monthlyPoints').textContent = this.user.monthlyPoints;
+        document.getElementById('monthlyPoints').textContent = Math.round(this.user.monthlyPoints);
         // Show total accumulated points instead of just today's points
-        document.getElementById('dailyScore').textContent = `${this.user.totalPoints} pts`;
+        document.getElementById('dailyScore').textContent = `${Math.round(this.user.totalPoints)} pts`;
         document.getElementById('teamRank').textContent = this.team.id ? '#3' : '#--';
     }
 
@@ -1085,13 +1171,15 @@ class DoppelgangerApp {
                 date.setDate(today.getDate() - (days - 1 - i));
                 const dateKey = this.formatDate(date);
                 const dayData = this.dailyData[dateKey];
-                const points = dayData && dayData.completed ? dayData.completed.reduce((sum, habitId) => {
+                
+                // Calculate points normally for charts (no tier punishment)
+                const basePoints = dayData && dayData.completed ? dayData.completed.reduce((sum, habitId) => {
                     const habit = this.habits[habitId];
                     return sum + (habit ? habit.points : 0);
                 }, 0) : 0;
                 
                 const x = (i / (days - 1)) * (pointsChart.width - 40) + 20;
-                const y = pointsChart.height - 20 - (points / 100) * (pointsChart.height - 40);
+                const y = pointsChart.height - 20 - (basePoints / 100) * (pointsChart.height - 40);
                 
                 if (i === 0) {
                     ctx1.moveTo(x, y);
@@ -1192,8 +1280,8 @@ class DoppelgangerApp {
     updateBattleArena() {
         const powerBalance = this.calculatePowerBalance();
         
-        document.getElementById('avatarPower').textContent = `Power: ${powerBalance.userPower}`;
-        document.getElementById('shadowPower').textContent = `Power: ${powerBalance.doppelgangerPower}`;
+        document.getElementById('avatarPower').textContent = `Power: ${Math.round(powerBalance.userPower)}`;
+        document.getElementById('shadowPower').textContent = `Power: ${Math.round(powerBalance.doppelgangerPower)}`;
 
         const today = new Date(this.currentDate);
         const startOfWeek = new Date(today);
@@ -1295,10 +1383,12 @@ class DoppelgangerApp {
         console.log(`✅ Day skipped! New stats calculated.`);
         console.log(`🔥 Current Streak: ${this.user.currentStreak}`);
         console.log(`⭐ Total XP: ${this.user.experience}`);
-        console.log(`📈 Monthly Points: ${this.user.monthlyPoints}`);
-        console.log(`💰 Total Points: ${this.user.totalPoints}`);
-        console.log(`⚡ Your Power: ${powerBalance.userPower} (${powerBalance.userPercentage}%)`);
-        console.log(`🌑 Shadow Power: ${powerBalance.doppelgangerPower} (${powerBalance.doppelgangerPercentage}%)`);
+        console.log(`📈 Monthly Points: ${Math.round(this.user.monthlyPoints)}`);
+        console.log(`💰 Total Points: ${Math.round(this.user.totalPoints)}`);
+        console.log(`🏆 Current Tier: ${this.getCurrentTier().toUpperCase()}`);
+        console.log(`⚔️ Tier Multiplier: ${this.getTierMultiplier(this.getCurrentTier())}x`);
+        console.log(`⚡ Your Power: ${Math.round(powerBalance.userPower)} (${powerBalance.userPercentage}%)`);
+        console.log(`🌑 Shadow Power: ${Math.round(powerBalance.doppelgangerPower)} (${powerBalance.doppelgangerPercentage}%)`);
         
         // Show current day's habit completion
         const todayKey = this.formatDate(this.currentDate);
@@ -1317,112 +1407,3 @@ document.addEventListener('DOMContentLoaded', () => {
     window.doppelgangerApp = new DoppelgangerApp();
     window.app = window.doppelgangerApp;
 });
-
-// Add CSS for dynamic elements
-const style = document.createElement('style');
-style.textContent = `
-    .habit-quick-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem;
-        margin-bottom: 0.25rem;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-    }
-    
-    .habit-quick-item.completed {
-        background: rgba(0, 255, 136, 0.1);
-        border-left: 3px solid var(--accent-green);
-    }
-    
-    .habit-quick-item .habit-icon {
-        font-size: 1.2rem;
-        min-width: 1.5rem;
-    }
-    
-    .habit-quick-item .habit-name {
-        flex: 1;
-        font-size: 0.8rem;
-    }
-    
-    .habit-quick-item .habit-status {
-        font-size: 1rem;
-    }
-    
-    .leaderboard-item {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 0.5rem;
-        transition: all 0.3s ease;
-    }
-    
-    .leaderboard-item.current-team {
-        border-color: var(--accent-blue);
-        box-shadow: var(--glow-blue);
-    }
-    
-    .leaderboard-item:hover {
-        transform: translateY(-2px);
-    }
-    
-    .team-rank {
-        font-weight: 700;
-        font-size: 1.2rem;
-        color: var(--accent-gold);
-        min-width: 3rem;
-    }
-    
-    .team-name {
-        flex: 1;
-        font-weight: 600;
-    }
-    
-    .team-score {
-        color: var(--accent-blue);
-        font-weight: 700;
-    }
-    
-    .no-team {
-        text-align: center;
-        color: var(--text-secondary);
-        font-style: italic;
-        padding: 2rem;
-    }
-    
-    .history-item .history-result.Victory {
-        color: var(--accent-green);
-        font-weight: 700;
-    }
-    
-    .history-item .history-result.Defeat {
-        color: var(--accent-red);
-        font-weight: 700;
-    }
-    
-    .current-tier.bronze { color: var(--bronze); }
-    .current-tier.silver { color: var(--silver); }
-    .current-tier.gold { color: var(--gold); }
-    .current-tier.platinum { color: var(--platinum); }
-    .current-tier.diamond { color: var(--diamond); }
-    
-    /* Enhanced meter labels styling */
-    .meter-labels {
-        font-size: 0.75rem !important;
-        display: flex;
-        justify-content: space-between;
-        margin-top: 0.5rem;
-    }
-    
-    .meter-labels span {
-        font-weight: 600;
-    }
-`;
-document.head.appendChild(style);

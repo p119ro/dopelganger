@@ -19,6 +19,7 @@
   --gold: #ffd700;
   --platinum: #e5e4e2;
   --diamond: #b9f2ff;
+  --goggins: #ff4500;
   
   /* Gradients */
   --avatar-gradient: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
@@ -911,6 +912,7 @@ body {
   box-shadow: var(--glow-green);
 }
 
+.tier.goggins { border-left: 4px solid var(--goggins); }
 .tier.diamond { border-left: 4px solid var(--diamond); }
 .tier.platinum { border-left: 4px solid var(--platinum); }
 .tier.gold { border-left: 4px solid var(--gold); }
@@ -1522,3 +1524,108 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-purple);
 }
+
+.habit-quick-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        margin-bottom: 0.25rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+    }
+    
+    .habit-quick-item.completed {
+        background: rgba(0, 255, 136, 0.1);
+        border-left: 3px solid var(--accent-green);
+    }
+    
+    .habit-quick-item .habit-icon {
+        font-size: 1.2rem;
+        min-width: 1.5rem;
+    }
+    
+    .habit-quick-item .habit-name {
+        flex: 1;
+        font-size: 0.8rem;
+    }
+    
+    .habit-quick-item .habit-status {
+        font-size: 1rem;
+    }
+    
+    .leaderboard-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .leaderboard-item.current-team {
+        border-color: var(--accent-blue);
+        box-shadow: var(--glow-blue);
+    }
+    
+    .leaderboard-item:hover {
+        transform: translateY(-2px);
+    }
+    
+    .team-rank {
+        font-weight: 700;
+        font-size: 1.2rem;
+        color: var(--accent-gold);
+        min-width: 3rem;
+    }
+    
+    .team-name {
+        flex: 1;
+        font-weight: 600;
+    }
+    
+    .team-score {
+        color: var(--accent-blue);
+        font-weight: 700;
+    }
+    
+    .no-team {
+        text-align: center;
+        color: var(--text-secondary);
+        font-style: italic;
+        padding: 2rem;
+    }
+    
+    .history-item .history-result.Victory {
+        color: var(--accent-green);
+        font-weight: 700;
+    }
+    
+    .history-item .history-result.Defeat {
+        color: var(--accent-red);
+        font-weight: 700;
+    }
+    
+    .current-tier.bronze { color: var(--bronze); }
+    .current-tier.silver { color: var(--silver); }
+    .current-tier.gold { color: var(--gold); }
+    .current-tier.platinum { color: var(--platinum); }
+    .current-tier.diamond { color: var(--diamond); }
+    .current-tier.goggins { color: var(--goggins); }
+    
+    /* Enhanced meter labels styling */
+    .meter-labels {
+        font-size: 0.75rem !important;
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
+    
+    .meter-labels span {
+        font-weight: 600;
+    }
