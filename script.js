@@ -1,4 +1,4 @@
-// Doppelganger App - Fixed Version
+// Doppelganger App - Enhanced Power System
 
 class DoppelgangerApp {
     constructor() {
@@ -21,6 +21,7 @@ class DoppelgangerApp {
             totalPoints: 0,
             monthlyPoints: 0,
             tier: 'bronze',
+            powerPoints: 0, // Accumulated power from completed habits
             avatar: {
                 strength: 100,
                 glow: 0,
@@ -34,7 +35,8 @@ class DoppelgangerApp {
             level: 1,
             strength: 80,
             influence: 0,
-            corruption: 0
+            corruption: 0,
+            powerPoints: 0 // Accumulated power from missed habits
         };
 
         this.team = {
@@ -69,7 +71,7 @@ class DoppelgangerApp {
         this.viewingDate = new Date(); // Track what date we're currently viewing
         this.currentSection = 'dashboard';
         
-        // Data structure: { 'YYYY-MM-DD': { habits: {}, completed: [], points: 0 } }
+        // Data structure: { 'YYYY-MM-DD': { habits: {}, completed: [], points: 0, processed: false } }
         this.dailyData = {};
         
         this.init();
@@ -175,6 +177,15 @@ class DoppelgangerApp {
                     this.currentDate = new Date();
                     this.viewingDate = new Date();
                 }
+                
+                // Ensure powerPoints exist (backward compatibility)
+                if (this.user.powerPoints === undefined) {
+                    this.user.powerPoints = 0;
+                }
+                if (this.doppelganger.powerPoints === undefined) {
+                    this.doppelganger.powerPoints = 0;
+                }
+                
             } else {
                 this.currentDate = new Date();
             }
@@ -190,6 +201,8 @@ class DoppelgangerApp {
         this.dailyData = {};
         this.currentDate = new Date();
         this.user.isFirstTime = true;
+        this.user.powerPoints = 0;
+        this.doppelganger.powerPoints = 0;
         this.saveToStorage();
     }
 
@@ -208,10 +221,66 @@ class DoppelgangerApp {
                 habits: {},
                 completed: [],
                 points: 0,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                processed: false // Track if missed habits have been processed
             };
         }
         return this.dailyData[dateKey];
+    }
+
+    // ============ POWER SYSTEM ============
+    processMissedHabits(dateKey) {
+        const dayData = this.getDailyData(dateKey);
+        
+        // Skip if already processed or if it's today (since day isn't over)
+        if (dayData.processed || dateKey === this.formatDate(this.currentDate)) {
+            return;
+        }
+        
+        const completedHabits = dayData.completed || [];
+        const totalHabits = Object.keys(this.habits);
+        
+        // Find missed habits
+        const missedHabits = totalHabits.filter(habitId => !completedHabits.includes(habitId));
+        
+        // Award doppelganger power for each missed habit
+        missedHabits.forEach(habitId => {
+            const habit = this.habits[habitId];
+            if (habit) {
+                this.doppelganger.powerPoints += habit.points;
+                console.log(`🌑 Doppelganger gained ${habit.points} power from missed habit: ${habit.name} on ${dateKey}`);
+            }
+        });
+        
+        // Mark as processed
+        dayData.processed = true;
+        
+        if (missedHabits.length > 0) {
+            console.log(`💀 Doppelganger gained ${missedHabits.reduce((sum, id) => sum + this.habits[id].points, 0)} total power from ${missedHabits.length} missed habits on ${dateKey}`);
+        }
+    }
+
+    calculatePowerBalance() {
+        const totalPower = this.user.powerPoints + this.doppelganger.powerPoints;
+        
+        if (totalPower === 0) {
+            return {
+                userPercentage: 50,
+                doppelgangerPercentage: 50,
+                userPower: 0,
+                doppelgangerPower: 0
+            };
+        }
+        
+        const userPercentage = (this.user.powerPoints / totalPower) * 100;
+        const doppelgangerPercentage = (this.doppelganger.powerPoints / totalPower) * 100;
+        
+        return {
+            userPercentage: Math.round(userPercentage),
+            doppelgangerPercentage: Math.round(doppelgangerPercentage),
+            userPower: this.user.powerPoints,
+            doppelgangerPower: this.doppelganger.powerPoints
+        };
     }
 
     // ============ STREAK CALCULATION ============
@@ -222,20 +291,28 @@ class DoppelgangerApp {
         // Reset totals
         this.user.totalPoints = 0;
         this.user.monthlyPoints = 0;
+        this.user.powerPoints = 0; // Reset and recalculate
+        this.doppelganger.powerPoints = 0; // Reset and recalculate
         
         // Get all dates and sort them
         const allDates = Object.keys(this.dailyData).sort();
         
-        // Calculate total points and experience
+        // Process each day for points and missed habits
         for (const dateKey of allDates) {
             const data = this.dailyData[dateKey];
             const dayDate = new Date(dateKey);
             const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
             
             if (data && data.completed) {
+                // Calculate completed habit points
                 const dayPoints = data.completed.reduce((sum, habitId) => {
                     const habit = this.habits[habitId];
-                    return sum + (habit ? habit.points : 0);
+                    if (habit) {
+                        // Add to user power
+                        this.user.powerPoints += habit.points;
+                        return sum + habit.points;
+                    }
+                    return sum;
                 }, 0);
                 
                 this.user.totalPoints += dayPoints;
@@ -244,6 +321,11 @@ class DoppelgangerApp {
                 if (daysDifference <= 30 && daysDifference >= 0) {
                     this.user.monthlyPoints += dayPoints;
                 }
+            }
+            
+            // Process missed habits for days in the past
+            if (daysDifference > 0) {
+                this.processMissedHabits(dateKey);
             }
         }
 
@@ -508,24 +590,18 @@ class DoppelgangerApp {
         const wasCompleted = dayData.completed.includes(habitId);
 
         if (completed && !wasCompleted) {
-            // Habit completed
+            // Habit completed - add to user power
             dayData.completed.push(habitId);
+            this.user.powerPoints += habit.points;
             
-            // Update avatar strength
-            this.user.avatar.strength += 2;
-            
-            // Reduce doppelganger influence
-            this.doppelganger.influence = Math.max(0, this.doppelganger.influence - 3);
+            console.log(`✅ Gained ${habit.points} power from completing: ${habit.name}`);
             
         } else if (!completed && wasCompleted) {
-            // Habit uncompleted
+            // Habit uncompleted - remove from user power
             dayData.completed = dayData.completed.filter(id => id !== habitId);
+            this.user.powerPoints = Math.max(0, this.user.powerPoints - habit.points);
             
-            // Reduce avatar strength
-            this.user.avatar.strength = Math.max(50, this.user.avatar.strength - 2);
-            
-            // Increase doppelganger influence
-            this.doppelganger.influence = Math.min(100, this.doppelganger.influence + 5);
+            console.log(`❌ Lost ${habit.points} power from uncompleting: ${habit.name}`);
         }
 
         // Recalculate everything
@@ -662,7 +738,7 @@ class DoppelgangerApp {
         const totalHabits = Object.keys(this.habits).length;
         const completionRatio = completedHabits / totalHabits;
 
-        // Update avatar glow and aura
+        // Update avatar glow and aura based on today's completion
         const avatarGlow = document.getElementById('avatarGlow');
         const avatarAura = document.getElementById('avatarAura');
         
@@ -677,7 +753,7 @@ class DoppelgangerApp {
             avatarAura.style.opacity = '0';
         }
 
-        // Update doppelganger corruption
+        // Update doppelganger corruption based on today's missed habits
         const doppelgangerShadow = document.getElementById('doppelgangerShadow');
         const doppelgangerCorruption = document.getElementById('doppelgangerCorruption');
         
@@ -687,14 +763,19 @@ class DoppelgangerApp {
         doppelgangerShadow.style.opacity = Math.min(1, corruptionLevel + 0.3);
         doppelgangerCorruption.style.opacity = corruptionLevel;
 
-        // Update strength meter
+        // Update power balance meter
+        const powerBalance = this.calculatePowerBalance();
         const strengthMeter = document.getElementById('strengthMeter');
-        const avatarStrength = this.user.avatar.strength;
-        const doppelgangerStrength = this.doppelganger.strength + this.doppelganger.influence;
-        const totalStrength = avatarStrength + doppelgangerStrength;
-        const meterPosition = (avatarStrength / totalStrength) * 100;
+        const meterBar = strengthMeter.parentElement;
         
-        strengthMeter.style.width = `${meterPosition}%`;
+        // Avatar is on LEFT, Doppelganger is on RIGHT
+        // So meter fill should represent USER power from left
+        strengthMeter.style.width = `${powerBalance.userPercentage}%`;
+        strengthMeter.style.background = 'var(--avatar-gradient)';
+        strengthMeter.style.display = 'block';
+        
+        // Set the background of the meter bar to show doppelganger color
+        meterBar.style.background = 'var(--doppelganger-gradient)';
 
         // Update avatar info
         const userName = this.user.name || 'Your Avatar';
@@ -705,8 +786,22 @@ class DoppelgangerApp {
         const neededXP = this.user.nextLevelXP || 100;
         document.getElementById('avatarExp').textContent = `${currentXP} / ${neededXP} XP`;
         
+        // Update doppelganger info
+        this.doppelganger.level = Math.max(1, Math.floor(this.doppelganger.powerPoints / 100) + 1);
         document.getElementById('doppelgangerLevel').textContent = `Level ${this.doppelganger.level}`;
-        document.getElementById('doppelgangerPower').textContent = `${Math.round(this.doppelganger.influence)}% Influence`;
+        document.getElementById('doppelgangerPower').textContent = `${powerBalance.doppelgangerPercentage}% Influence`;
+        
+        // Update meter labels to match visual layout
+        // Avatar is on LEFT, Doppelganger is on RIGHT
+        const meterLabels = document.querySelector('.meter-labels');
+        if (meterLabels) {
+            meterLabels.innerHTML = `
+                <span>You: ${powerBalance.userPower} (${powerBalance.userPercentage}%)</span>
+                <span>Shadow: ${powerBalance.doppelgangerPower} (${powerBalance.doppelgangerPercentage}%)</span>
+            `;
+        }
+        
+        console.log(`⚡ Power Balance - You: ${powerBalance.userPower} (${powerBalance.userPercentage}%) | Shadow: ${powerBalance.doppelgangerPower} (${powerBalance.doppelgangerPercentage}%)`);
     }
 
     updateTierProgression() {
@@ -1095,11 +1190,10 @@ class DoppelgangerApp {
     }
 
     updateBattleArena() {
-        const avatarPower = this.user.avatar.strength + (this.user.level * 10);
-        const shadowPower = this.doppelganger.strength + this.doppelganger.influence;
-
-        document.getElementById('avatarPower').textContent = `Power: ${Math.round(avatarPower)}`;
-        document.getElementById('shadowPower').textContent = `Power: ${Math.round(shadowPower)}`;
+        const powerBalance = this.calculatePowerBalance();
+        
+        document.getElementById('avatarPower').textContent = `Power: ${powerBalance.userPower}`;
+        document.getElementById('shadowPower').textContent = `Power: ${powerBalance.doppelgangerPower}`;
 
         const today = new Date(this.currentDate);
         const startOfWeek = new Date(today);
@@ -1124,17 +1218,18 @@ class DoppelgangerApp {
         
         const avgCompletion = daysChecked > 0 ? weeklyCompletion / daysChecked : 0;
         
-        if (avgCompletion >= 0.8) {
+        // Battle status based on power balance
+        if (powerBalance.userPercentage >= 70) {
             document.getElementById('battleStatus').textContent = 'Victory Imminent';
             this.battle.playerHealth = 100;
-            this.battle.doppelgangerHealth = Math.max(20, 100 - (avgCompletion * 80));
-        } else if (avgCompletion >= 0.5) {
+            this.battle.doppelgangerHealth = Math.max(10, 100 - powerBalance.userPercentage);
+        } else if (powerBalance.userPercentage >= 50) {
             document.getElementById('battleStatus').textContent = 'Fierce Battle';
-            this.battle.playerHealth = 60 + (avgCompletion * 40);
-            this.battle.doppelgangerHealth = 40 + ((1 - avgCompletion) * 60);
+            this.battle.playerHealth = 50 + (powerBalance.userPercentage - 50) * 2;
+            this.battle.doppelgangerHealth = 50 + (powerBalance.doppelgangerPercentage - 50) * 2;
         } else {
             document.getElementById('battleStatus').textContent = 'Shadow Winning';
-            this.battle.playerHealth = Math.max(20, avgCompletion * 100);
+            this.battle.playerHealth = Math.max(10, powerBalance.userPercentage * 2);
             this.battle.doppelgangerHealth = 100;
         }
 
@@ -1180,6 +1275,10 @@ class DoppelgangerApp {
         console.log(`🕐 Skipping day...`);
         console.log(`📅 Before: ${this.formatDate(this.currentDate)}`);
         
+        // Process missed habits for the current day before advancing
+        const currentDateKey = this.formatDate(this.currentDate);
+        this.processMissedHabits(currentDateKey);
+        
         // Advance the current date by one day
         this.currentDate.setDate(this.currentDate.getDate() + 1);
         // Also update viewing date to the new current date
@@ -1192,11 +1291,14 @@ class DoppelgangerApp {
         this.saveToStorage();
         this.updateDisplay();
         
+        const powerBalance = this.calculatePowerBalance();
         console.log(`✅ Day skipped! New stats calculated.`);
         console.log(`🔥 Current Streak: ${this.user.currentStreak}`);
         console.log(`⭐ Total XP: ${this.user.experience}`);
         console.log(`📈 Monthly Points: ${this.user.monthlyPoints}`);
         console.log(`💰 Total Points: ${this.user.totalPoints}`);
+        console.log(`⚡ Your Power: ${powerBalance.userPower} (${powerBalance.userPercentage}%)`);
+        console.log(`🌑 Shadow Power: ${powerBalance.doppelgangerPower} (${powerBalance.doppelgangerPercentage}%)`);
         
         // Show current day's habit completion
         const todayKey = this.formatDate(this.currentDate);
@@ -1310,5 +1412,17 @@ style.textContent = `
     .current-tier.gold { color: var(--gold); }
     .current-tier.platinum { color: var(--platinum); }
     .current-tier.diamond { color: var(--diamond); }
+    
+    /* Enhanced meter labels styling */
+    .meter-labels {
+        font-size: 0.75rem !important;
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
+    
+    .meter-labels span {
+        font-weight: 600;
+    }
 `;
 document.head.appendChild(style);
