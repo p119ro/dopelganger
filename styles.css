@@ -1629,3 +1629,77 @@ body {
     .meter-labels span {
         font-weight: 600;
     }
+
+
+    .penalty-system {
+    margin: 2rem 0;
+}
+
+.penalty-card {
+    background: linear-gradient(135deg, rgba(255, 68, 68, 0.1), rgba(128, 0, 128, 0.1));
+    border: 1px solid var(--accent-red);
+    border-radius: 15px;
+    padding: 1.5rem;
+    backdrop-filter: blur(20px);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.penalty-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.penalty-icon {
+    font-size: 2rem;
+    min-width: 3rem;
+    text-align: center;
+}
+
+.penalty-info h3 {
+    color: var(--accent-red);
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+}
+
+.penalty-info p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.penalty-button {
+    background: var(--doppelganger-gradient);
+    border: none;
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 700;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all var(--transition-normal);
+    box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+}
+
+.penalty-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(255, 68, 68, 0.4);
+}
+
+.penalty-button:active {
+    transform: translateY(-1px);
+}
+
+.penalty-text {
+    font-size: 1rem;
+}
+
+.penalty-points {
+    font-size: 1.1rem;
+    font-weight: 900;
+}

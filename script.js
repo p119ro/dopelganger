@@ -531,6 +531,18 @@ class DoppelgangerApp {
                 this.switchProgressFilter(e.target.dataset.period);
             });
         });
+
+        document.getElementById('screentime-penalty-btn').addEventListener('click', () => {
+            // Deduct from user and give to doppelganger (feeding the shadow)
+            this.user.powerPoints -= 10;
+            this.doppelganger.powerPoints += 10;
+            
+            // Update all displays
+            this.updateDailySummary();
+            this.updateAvatarSystem();
+            this.updateQuickStats();
+            this.saveToStorage();
+        });
     }
 
     switchSection(sectionId) {
