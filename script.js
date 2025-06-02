@@ -643,15 +643,28 @@ class DoppelgangerApp {
 
         const habit = this.habits[habitId];
         const wasCompleted = dayData.completed.includes(habitId);
+        const isPastDayWithPunishment = dayData.punishmentApplied && !this.isToday(dateKey);
 
         if (completed && !wasCompleted) {
             // Habit completed - add points immediately
             dayData.completed.push(habitId);
             this.user.powerPoints += habit.points;
+            
+            // If this is a past day that already had punishment applied,
+            // subtract points from doppelganger since this habit is no longer "missed"
+            if (isPastDayWithPunishment) {
+                this.doppelganger.powerPoints -= habit.points;
+            }
         } else if (!completed && wasCompleted) {
             // Habit uncompleted - remove points immediately
             dayData.completed = dayData.completed.filter(id => id !== habitId);
             this.user.powerPoints -= habit.points;
+            
+            // If this is a past day that already had punishment applied,
+            // add points back to doppelganger since this habit is now "missed" again
+            if (isPastDayWithPunishment) {
+                this.doppelganger.powerPoints += habit.points;
+            }
         }
 
         this.calculateStreaksAndStats();
