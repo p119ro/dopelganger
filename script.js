@@ -1,4 +1,4 @@
-// Doppelganger App - Complete Enhanced Power System with Tier-based Punishment
+// Doppelganger App - Fixed Date Management and Daily Reset System
 
 class DoppelgangerApp {
     constructor() {
@@ -67,6 +67,7 @@ class DoppelgangerApp {
             'top-performer': false
         };
 
+        // Always use the real current date
         this.currentDate = new Date();
         this.viewingDate = new Date();
         this.currentSection = 'dashboard';
@@ -80,6 +81,9 @@ class DoppelgangerApp {
     init() {
         this.loadFromStorage();
         
+        // Always sync with real current date and process any missed days
+        this.syncWithRealDate();
+        
         if (this.user.isFirstTime) {
             this.showNameModal();
         }
@@ -88,6 +92,56 @@ class DoppelgangerApp {
         this.calculateStreaksAndStats(); // This will now call processAllMissedDays internally
         this.updateDisplay();
         this.startTimers();
+    }
+
+    // ============ DATE SYNCHRONIZATION ============
+    syncWithRealDate() {
+        const realCurrentDate = new Date();
+        const realDateKey = this.formatDate(realCurrentDate);
+        
+        // Get the last stored date
+        const storedDates = Object.keys(this.dailyData).sort();
+        const lastStoredDate = storedDates.length > 0 ? new Date(storedDates[storedDates.length - 1]) : null;
+        
+        // If we have stored data and the real date is different from our last stored date
+        if (lastStoredDate && realCurrentDate.getTime() > lastStoredDate.getTime()) {
+            // Process all days between the last stored date and today
+            this.processDateGap(lastStoredDate, realCurrentDate);
+        }
+        
+        // Always set current date to real current date
+        this.currentDate = new Date(realCurrentDate);
+        this.viewingDate = new Date(realCurrentDate);
+        
+        // Ensure today's data exists
+        this.getDailyData(realDateKey);
+        
+        this.saveToStorage();
+    }
+
+    processDateGap(fromDate, toDate) {
+        const currentDate = new Date(fromDate);
+        currentDate.setDate(currentDate.getDate() + 1); // Start from the day after the last stored date
+        
+        while (currentDate < toDate) {
+            const dateKey = this.formatDate(currentDate);
+            
+            // Create empty day data for missed days
+            if (!this.dailyData[dateKey]) {
+                this.dailyData[dateKey] = {
+                    habits: {},
+                    completed: [],
+                    points: 0,
+                    timestamp: currentDate.getTime(),
+                    punishmentApplied: false
+                };
+            }
+            
+            // Apply punishment for missed days
+            this.applyDayEndPunishment(dateKey);
+            
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
     }
 
     // ============ USER SETUP ============
@@ -142,8 +196,7 @@ class DoppelgangerApp {
             achievements: this.achievements,
             dailyData: this.dailyData,
             battle: this.battle,
-            currentDate: this.currentDate.toISOString(),
-            viewingDate: this.viewingDate.toISOString()
+            lastSavedDate: this.formatDate(new Date()) // Store when we last saved
         };
         
         try {
@@ -167,14 +220,6 @@ class DoppelgangerApp {
                 this.dailyData = data.dailyData || {};
                 this.battle = { ...this.battle, ...data.battle };
                 
-                if (data.currentDate) {
-                    this.currentDate = new Date(data.currentDate);
-                    this.viewingDate = new Date(data.currentDate);
-                } else {
-                    this.currentDate = new Date();
-                    this.viewingDate = new Date();
-                }
-                
                 if (this.user.powerPoints === undefined) {
                     this.user.powerPoints = 0;
                 }
@@ -182,8 +227,6 @@ class DoppelgangerApp {
                     this.doppelganger.powerPoints = 0;
                 }
                 
-            } else {
-                this.currentDate = new Date();
             }
             
         } catch (error) {
@@ -195,6 +238,7 @@ class DoppelgangerApp {
         localStorage.removeItem('doppelganger_data');
         this.dailyData = {};
         this.currentDate = new Date();
+        this.viewingDate = new Date();
         this.user.isFirstTime = true;
         this.user.powerPoints = 0;
         this.doppelganger.powerPoints = 0;
@@ -216,11 +260,16 @@ class DoppelgangerApp {
                 habits: {},
                 completed: [],
                 points: 0,
-                timestamp: Date.now(),
+                timestamp: new Date(dateKey).getTime(),
                 punishmentApplied: false
             };
         }
         return this.dailyData[dateKey];
+    }
+
+    isToday(dateKey) {
+        const today = this.formatDate(this.currentDate);
+        return dateKey === today;
     }
 
     // ============ TIER SYSTEM ============
@@ -645,6 +694,7 @@ class DoppelgangerApp {
         const newDate = new Date(this.viewingDate);
         newDate.setDate(newDate.getDate() + direction);
         
+        // Don't allow viewing future dates beyond today
         if (newDate > this.currentDate) return;
         
         this.viewingDate = newDate;
@@ -662,11 +712,11 @@ class DoppelgangerApp {
             day: 'numeric' 
         };
         
-        const isAppToday = this.viewingDate.getDate() === this.currentDate.getDate() &&
-                          this.viewingDate.getMonth() === this.currentDate.getMonth() &&
-                          this.viewingDate.getFullYear() === this.currentDate.getFullYear();
+        const isViewingToday = this.viewingDate.getDate() === this.currentDate.getDate() &&
+                              this.viewingDate.getMonth() === this.currentDate.getMonth() &&
+                              this.viewingDate.getFullYear() === this.currentDate.getFullYear();
         
-        document.getElementById('currentDate').textContent = isAppToday ? 
+        document.getElementById('currentDate').textContent = isViewingToday ? 
             'Today' : 
             this.viewingDate.toLocaleDateString('en-US', options);
     }
@@ -791,7 +841,7 @@ class DoppelgangerApp {
         
         const currentXP = this.user.currentLevelXP !== undefined ? this.user.currentLevelXP : (this.user.experience % 100);
         const neededXP = this.user.nextLevelXP || 100;
-        document.getElementById('avatarExp').textContent = `${currentXP} / ${neededXP} XP`;
+        document.getElementById('avatarExp').textContent = `${Math.max(0, currentXP)} / ${neededXP} XP`;
         
         this.doppelganger.level = Math.max(1, Math.floor(this.doppelganger.powerPoints / 100) + 1);
         document.getElementById('doppelgangerLevel').textContent = `Level ${this.doppelganger.level}`;
@@ -1252,6 +1302,19 @@ class DoppelgangerApp {
 
     // ============ TIMERS ============
     startTimers() {
+        // Check for date changes every minute
+        setInterval(() => {
+            const realCurrentDate = new Date();
+            const realDateKey = this.formatDate(realCurrentDate);
+            const currentDateKey = this.formatDate(this.currentDate);
+            
+            // If the real date has changed, sync with it
+            if (realDateKey !== currentDateKey) {
+                this.syncWithRealDate();
+                this.updateDisplay();
+            }
+        }, 60000); // Check every minute
+
         setInterval(() => {
             if (this.currentSection === 'battle') {
                 this.updateBattleTimer();
@@ -1259,7 +1322,7 @@ class DoppelgangerApp {
         }, 1000);
     }
 
-    // ============ SKIP DAY (DEBUG) ============
+    // ============ DEBUG FUNCTIONS ============
     skipDay() {
         // Apply punishment for the current day before advancing
         const currentDateKey = this.formatDate(this.currentDate);
