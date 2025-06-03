@@ -98,20 +98,29 @@ class DoppelgangerApp {
     syncWithRealDate() {
         const realCurrentDate = new Date();
         const realDateKey = this.formatDate(realCurrentDate);
+        const currentStoredDateKey = this.formatDate(this.currentDate);
         
-        // Get the last stored date
-        const storedDates = Object.keys(this.dailyData).sort();
-        const lastStoredDate = storedDates.length > 0 ? new Date(storedDates[storedDates.length - 1]) : null;
-        
-        // If we have stored data and the real date is different from our last stored date
-        if (lastStoredDate && realCurrentDate.getTime() > lastStoredDate.getTime()) {
-            // Process all days between the last stored date and today
-            this.processDateGap(lastStoredDate, realCurrentDate);
+        // Only sync if we're on a different DATE (not just different time)
+        if (realDateKey !== currentStoredDateKey) {
+            // Get the last stored date
+            const storedDates = Object.keys(this.dailyData).sort();
+            const lastStoredDateKey = storedDates.length > 0 ? storedDates[storedDates.length - 1] : null;
+            
+            // Only process gap if there are actually missing days between stored dates and today
+            if (lastStoredDateKey && lastStoredDateKey < realDateKey) {
+                const lastStoredDate = new Date(lastStoredDateKey);
+                const daysDifference = Math.floor((realCurrentDate - lastStoredDate) / (1000 * 60 * 60 * 24));
+                
+                // Only process if there's actually a gap of more than 1 day
+                if (daysDifference > 1) {
+                    this.processDateGap(lastStoredDate, realCurrentDate);
+                }
+            }
+            
+            // Update current date to real current date
+            this.currentDate = new Date(realCurrentDate);
+            this.viewingDate = new Date(realCurrentDate);
         }
-        
-        // Always set current date to real current date
-        this.currentDate = new Date(realCurrentDate);
-        this.viewingDate = new Date(realCurrentDate);
         
         // Ensure today's data exists
         this.getDailyData(realDateKey);
@@ -123,8 +132,17 @@ class DoppelgangerApp {
         const currentDate = new Date(fromDate);
         currentDate.setDate(currentDate.getDate() + 1); // Start from the day after the last stored date
         
-        while (currentDate < toDate) {
+        // Only process days that are actually in the past, not today
+        const today = new Date(toDate);
+        const todayDateKey = this.formatDate(today);
+        
+        while (currentDate < today) {
             const dateKey = this.formatDate(currentDate);
+            
+            // Skip if this is today - we don't want to process today as a "missed" day
+            if (dateKey === todayDateKey) {
+                break;
+            }
             
             // Create empty day data for missed days
             if (!this.dailyData[dateKey]) {
@@ -137,7 +155,7 @@ class DoppelgangerApp {
                 };
             }
             
-            // Apply punishment for missed days
+            // Apply punishment for missed days (only for actual past days)
             this.applyDayEndPunishment(dateKey);
             
             currentDate.setDate(currentDate.getDate() + 1);
@@ -335,9 +353,15 @@ class DoppelgangerApp {
 
     processAllMissedDays() {
         const today = new Date(this.currentDate);
+        const todayDateKey = this.formatDate(today);
         const allDates = Object.keys(this.dailyData).sort();
         
         for (const dateKey of allDates) {
+            // Skip today - we don't want to process today as "missed" until tomorrow
+            if (dateKey === todayDateKey) {
+                continue;
+            }
+            
             const dayData = this.dailyData[dateKey];
             const dayDate = new Date(dateKey);
             const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
@@ -1321,7 +1345,7 @@ class DoppelgangerApp {
             const realDateKey = this.formatDate(realCurrentDate);
             const currentDateKey = this.formatDate(this.currentDate);
             
-            // If the real date has changed, sync with it
+            // Only sync if the actual DATE has changed, not just the time
             if (realDateKey !== currentDateKey) {
                 this.syncWithRealDate();
                 this.updateDisplay();
@@ -1349,6 +1373,28 @@ class DoppelgangerApp {
         this.calculateStreaksAndStats();
         this.saveToStorage();
         this.updateDisplay();
+    }
+
+    // Recovery function for shifted data
+    shiftDataForward() {
+        const newDailyData = {};
+        const sortedDates = Object.keys(this.dailyData).sort();
+        
+        for (let i = 0; i < sortedDates.length; i++) {
+            const oldDateKey = sortedDates[i];
+            const oldDate = new Date(oldDateKey);
+            const newDate = new Date(oldDate);
+            newDate.setDate(newDate.getDate() + 1); // Shift forward by 1 day
+            const newDateKey = this.formatDate(newDate);
+            
+            newDailyData[newDateKey] = { ...this.dailyData[oldDateKey] };
+            newDailyData[newDateKey].timestamp = newDate.getTime();
+        }
+        
+        this.dailyData = newDailyData;
+        this.saveToStorage();
+        this.updateDisplay();
+        console.log('Data shifted forward by 1 day');
     }
 
     updateDisplay() {
