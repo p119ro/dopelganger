@@ -72,6 +72,10 @@ class DoppelgangerApp {
         this.viewingDate = new Date();
         this.currentSection = 'dashboard';
         
+        // Cache the current date key for performance
+        this._cachedDateKey = null;
+        this._lastSyncCheck = null;
+        
         // Data structure: { 'YYYY-MM-DD': { habits: {}, completed: [], points: 0, processed: false, punishmentProcessed: false } }
         this.dailyData = {};
         
@@ -80,6 +84,11 @@ class DoppelgangerApp {
 
     init() {
         this.loadFromStorage();
+        
+        // Initialize cache
+        this._cachedDateKey = this.formatDate(this.currentDate);
+        this._lastSyncCheck = Date.now();
+        this._lastMissedDaysCheck = 0; // Force initial check
         
         // Always sync with real current date and process any missed days
         this.syncWithRealDate();
@@ -98,34 +107,40 @@ class DoppelgangerApp {
     syncWithRealDate() {
         const realCurrentDate = new Date();
         const realDateKey = this.formatDate(realCurrentDate);
-        const currentStoredDateKey = this.formatDate(this.currentDate);
+        
+        // Use cached date key for performance
+        if (!this._cachedDateKey) {
+            this._cachedDateKey = this.formatDate(this.currentDate);
+        }
         
         // Only sync if we're on a different DATE (not just different time)
-        if (realDateKey !== currentStoredDateKey) {
-            // Get the last stored date
-            const storedDates = Object.keys(this.dailyData).sort();
-            const lastStoredDateKey = storedDates.length > 0 ? storedDates[storedDates.length - 1] : null;
-            
-            // Only process gap if there are actually missing days between stored dates and today
-            if (lastStoredDateKey && lastStoredDateKey < realDateKey) {
-                const lastStoredDate = new Date(lastStoredDateKey);
-                const daysDifference = Math.floor((realCurrentDate - lastStoredDate) / (1000 * 60 * 60 * 24));
+        if (realDateKey !== this._cachedDateKey) {
+            // Get the last stored date (only if we actually need it)
+            const storedDates = Object.keys(this.dailyData);
+            if (storedDates.length > 0) {
+                const lastStoredDateKey = storedDates.sort().pop();
                 
-                // Only process if there's actually a gap of more than 1 day
-                if (daysDifference > 1) {
-                    this.processDateGap(lastStoredDate, realCurrentDate);
+                // Only process gap if there are actually missing days between stored dates and today
+                if (lastStoredDateKey && lastStoredDateKey < realDateKey) {
+                    const lastStoredDate = new Date(lastStoredDateKey);
+                    const daysDifference = Math.floor((realCurrentDate - lastStoredDate) / (1000 * 60 * 60 * 24));
+                    
+                    // Only process if there's actually a gap of more than 1 day
+                    if (daysDifference > 1) {
+                        this.processDateGap(lastStoredDate, realCurrentDate);
+                    }
                 }
             }
             
-            // Update current date to real current date
+            // Update current date and cache
             this.currentDate = new Date(realCurrentDate);
             this.viewingDate = new Date(realCurrentDate);
+            this._cachedDateKey = realDateKey;
+            
+            // Ensure today's data exists
+            this.getDailyData(realDateKey);
+            this.saveToStorage();
         }
-        
-        // Ensure today's data exists
-        this.getDailyData(realDateKey);
-        
-        this.saveToStorage();
     }
 
     processDateGap(fromDate, toDate) {
@@ -354,22 +369,40 @@ class DoppelgangerApp {
     processAllMissedDays() {
         const today = new Date(this.currentDate);
         const todayDateKey = this.formatDate(today);
-        const allDates = Object.keys(this.dailyData).sort();
+        const allDates = Object.keys(this.dailyData);
         
-        for (const dateKey of allDates) {
+        // Early exit if no data
+        if (allDates.length === 0) return;
+        
+        let hasChanges = false;
+        const sortedDates = allDates.sort();
+        
+        for (const dateKey of sortedDates) {
             // Skip today - we don't want to process today as "missed" until tomorrow
             if (dateKey === todayDateKey) {
                 continue;
             }
             
             const dayData = this.dailyData[dateKey];
+            
+            // Early exit if already processed
+            if (dayData.punishmentApplied) {
+                continue;
+            }
+            
             const dayDate = new Date(dateKey);
             const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
             
             // Only process past days that haven't had punishment applied yet
-            if (daysDifference > 0 && !dayData.punishmentApplied) {
+            if (daysDifference > 0) {
                 this.applyDayEndPunishment(dateKey);
+                hasChanges = true;
             }
+        }
+        
+        // Only save if we made changes
+        if (hasChanges) {
+            this.saveToStorage();
         }
     }
 
@@ -398,22 +431,28 @@ class DoppelgangerApp {
 
     // ============ STREAK CALCULATION ============
     calculateStreaksAndStats() {
+        // Only process missed days if we haven't recently
+        const now = Date.now();
+        if (!this._lastMissedDaysCheck || (now - this._lastMissedDaysCheck) >= 300000) { // 5 minutes
+            this.processAllMissedDays();
+            this._lastMissedDaysCheck = now;
+        }
+        
         // Calculate monthly points from completed habits (last 30 days)
         this.user.monthlyPoints = 0;
         
         const today = new Date(this.currentDate);
-        const allDates = Object.keys(this.dailyData).sort();
-        
-        // Process any unprocessed past days
-        this.processAllMissedDays();
+        const allDates = Object.keys(this.dailyData);
         
         // Calculate monthly points from completed habits only
         for (const dateKey of allDates) {
             const data = this.dailyData[dateKey];
+            if (!data || !data.completed) continue;
+            
             const dayDate = new Date(dateKey);
             const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
             
-            if (data && data.completed && daysDifference <= 30 && daysDifference >= 0) {
+            if (daysDifference <= 30 && daysDifference >= 0) {
                 const dayPoints = data.completed.reduce((sum, habitId) => {
                     const habit = this.habits[habitId];
                     return habit ? sum + habit.points : sum;
@@ -427,7 +466,7 @@ class DoppelgangerApp {
         this.user.totalPoints = this.user.powerPoints; // Keep totalPoints in sync
         this.calculateLevel();
 
-        // Calculate habit streaks
+        // Calculate habit streaks (cache for performance)
         Object.keys(this.habits).forEach(habitId => {
             this.habits[habitId].streak = this.calculateHabitStreak(habitId);
         });
@@ -1339,16 +1378,21 @@ class DoppelgangerApp {
 
     // ============ TIMERS ============
     startTimers() {
-        // Check for date changes every minute
+        // Check for date changes every minute, but be efficient about it
         setInterval(() => {
-            const realCurrentDate = new Date();
-            const realDateKey = this.formatDate(realCurrentDate);
-            const currentDateKey = this.formatDate(this.currentDate);
+            const now = Date.now();
             
-            // Only sync if the actual DATE has changed, not just the time
-            if (realDateKey !== currentDateKey) {
-                this.syncWithRealDate();
-                this.updateDisplay();
+            // Only check sync every minute, not more frequently
+            if (!this._lastSyncCheck || (now - this._lastSyncCheck) >= 60000) {
+                const realDateKey = this.formatDate(new Date());
+                
+                // Only do expensive sync if date actually changed
+                if (realDateKey !== this._cachedDateKey) {
+                    this.syncWithRealDate();
+                    this.updateDisplay();
+                }
+                
+                this._lastSyncCheck = now;
             }
         }, 60000); // Check every minute
 
