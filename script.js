@@ -390,11 +390,12 @@ class DoppelgangerApp {
                 continue;
             }
             
-            const dayDate = new Date(dateKey);
-            const daysDifference = Math.floor((today - dayDate) / (1000 * 60 * 60 * 24));
+            // More robust date comparison - only process if date is clearly in the past
+            const dayDate = new Date(dateKey + 'T23:59:59'); // End of that day
+            const todayStart = new Date(todayDateKey + 'T00:00:00'); // Start of today
             
-            // Only process past days that haven't had punishment applied yet
-            if (daysDifference > 0) {
+            // Only process if the day has completely ended (not just a time difference)
+            if (dayDate < todayStart) {
                 this.applyDayEndPunishment(dateKey);
                 hasChanges = true;
             }
