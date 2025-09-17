@@ -4,7 +4,7 @@ class DoppelgangerApp {
     constructor() {
         this.habits = {
             reading: { name: 'Read 30 minutes', points: 10, icon: '📚' },
-            screentime: { name: 'Screen time <2 hours', points: 10, icon: '📵' },
+            screentime: { name: 'Screen time <2 hours', points: 15, icon: '📵' },
             gym: { name: 'Gym session', points: 15, icon: '💪' },
             sleep: { name: 'Sleep 7-9 hours', points: 10, icon: '😴' },
             deepwork: { name: '90 min deep work', points: 15, icon: '🎯' },
@@ -594,7 +594,7 @@ class DoppelgangerApp {
             card.classList.remove('completed');
         }
 
-        const progressWidth = Math.min(100, ((habit.streak || 0) / 30) * 100);
+        const progressWidth = Math.min(100, ((habit.streak || 0) / 66) * 100);
         progressElement.style.width = `${progressWidth}%`;
     }
 
@@ -1077,7 +1077,7 @@ class DoppelgangerApp {
             this.achievements['perfect-day'] = true;
         }
 
-        if (this.user.currentStreak >= 30) {
+        if (this.user.currentStreak >= 66) {
             this.achievements['streak-master'] = true;
         }
 
