@@ -6,7 +6,7 @@ class DoppelgangerApp {
             reading: { name: 'Read 30 minutes', points: 10, icon: '📚' },
             screentime: { name: 'Screen time <2 hours', points: 15, icon: '📵' },
             gym: { name: 'Gym session', points: 15, icon: '💪' },
-            sleep: { name: 'Sleep 7-9 hours', points: 10, icon: '😴' },
+            sleep: { name: 'Sleep 7-10 hours', points: 10, icon: '😴' },
             deepwork: { name: '90 min deep work', points: 15, icon: '🎯' },
             cardio: { name: '20 min cardio', points: 10, icon: '🏃‍♂️' },
             meditation: { name: 'Meditate 10 min', points: 5, icon: '🧘' },
@@ -75,9 +75,13 @@ class DoppelgangerApp {
         this.init();
     }
 
-    // ============ ROCK SOLID DATE FUNCTIONS ============
+    // ============ ROCK SOLID DATE FUNCTIONS (4:00 AM CUTOFF) ============
     getRealTodayKey() {
         const now = new Date();
+        // If it's before 4:00 AM, use yesterday's date
+        if (now.getHours() < 4) {
+            now.setDate(now.getDate() - 1);
+        }
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
@@ -92,7 +96,8 @@ class DoppelgangerApp {
         if (!this.dailyData[dateKey]) {
             this.dailyData[dateKey] = {
                 completed: [],
-                punishmentApplied: false
+                punishmentApplied: false,
+                perfectDayBonus: false
             };
         }
         return this.dailyData[dateKey];
@@ -323,6 +328,10 @@ class DoppelgangerApp {
         
         for (let i = 0; i < 30; i++) {
             const date = new Date();
+            // Adjust for 4:00 AM cutoff
+            if (new Date().getHours() < 4) {
+                date.setDate(date.getDate() - 1);
+            }
             date.setDate(date.getDate() - i);
             const dateKey = this.formatDate(date);
             
@@ -331,16 +340,16 @@ class DoppelgangerApp {
                 const dayPoints = dayData.completed.reduce((sum, habitId) => {
                     return sum + this.habits[habitId].points;
                 }, 0);
-                this.user.monthlyPoints += dayPoints;
+                const perfectBonus = dayData.perfectDayBonus ? 5 : 0;
+                this.user.monthlyPoints += (dayPoints + perfectBonus);
             }
         }
 
-        // Calculate level
+        // Rest of the function stays the same...
         this.user.experience = this.user.powerPoints;
         this.user.totalPoints = this.user.powerPoints;
         this.calculateLevel();
 
-        // Calculate streaks
         Object.keys(this.habits).forEach(habitId => {
             this.habits[habitId].streak = this.calculateHabitStreak(habitId);
         });
@@ -546,6 +555,7 @@ class DoppelgangerApp {
         const habit = this.habits[habitId];
         const wasCompleted = dayData.completed.includes(habitId);
         const isPastDayWithPunishment = dayData.punishmentApplied && !this.isRealToday(this.viewingDateKey);
+        const hadPerfectDay = dayData.perfectDayBonus;
 
         if (completed && !wasCompleted) {
             dayData.completed.push(habitId);
@@ -555,6 +565,19 @@ class DoppelgangerApp {
             if (isPastDayWithPunishment) {
                 this.doppelganger.powerPoints -= habit.points;
             }
+            
+            // Check for perfect day
+            const totalHabits = Object.keys(this.habits).length;
+            if (dayData.completed.length === totalHabits && !hadPerfectDay) {
+                // Perfect day achieved!
+                dayData.perfectDayBonus = true;
+                this.user.powerPoints += 5;
+                
+                // Only show confetti if viewing today
+                if (this.isRealToday(this.viewingDateKey)) {
+                    this.showConfetti();
+                }
+            }
         } else if (!completed && wasCompleted) {
             dayData.completed = dayData.completed.filter(id => id !== habitId);
             this.user.powerPoints -= habit.points;
@@ -562,6 +585,12 @@ class DoppelgangerApp {
             // If editing past day that was already punished, add back to doppelganger
             if (isPastDayWithPunishment) {
                 this.doppelganger.powerPoints += habit.points;
+            }
+            
+            // Remove perfect day bonus if we had it
+            if (hadPerfectDay) {
+                dayData.perfectDayBonus = false;
+                this.user.powerPoints -= 5;
             }
         }
 
@@ -665,6 +694,10 @@ class DoppelgangerApp {
             return sum + this.habits[habitId].points;
         }, 0);
         
+        // Add perfect day bonus
+        const perfectDayBonus = dayData.perfectDayBonus ? 5 : 0;
+        const totalEarnedPoints = basePoints + perfectDayBonus;
+        
         const tier = this.getCurrentTier();
         const multiplier = this.getTierMultiplier(tier);
         const missedPoints = Object.keys(this.habits).filter(habitId => 
@@ -674,16 +707,24 @@ class DoppelgangerApp {
         }, 0);
         
         const punishment = Math.floor(missedPoints * multiplier);
-        const netScore = basePoints - punishment;
+        const netScore = totalEarnedPoints - punishment;
         const teamBonus = this.team.multiplier;
         const finalScore = Math.round(netScore * teamBonus);
 
         document.getElementById('completedCount').textContent = `${completedHabits}/${totalHabits}`;
         
-        if (punishment > 0) {
-            document.getElementById('pointsEarned').innerHTML = `${basePoints} - ${punishment} = ${netScore}`;
+        if (perfectDayBonus > 0) {
+            if (punishment > 0) {
+                document.getElementById('pointsEarned').innerHTML = `${basePoints} + ${perfectDayBonus} - ${punishment} = ${netScore}`;
+            } else {
+                document.getElementById('pointsEarned').innerHTML = `${basePoints} + ${perfectDayBonus} = ${totalEarnedPoints}`;
+            }
         } else {
-            document.getElementById('pointsEarned').textContent = basePoints;
+            if (punishment > 0) {
+                document.getElementById('pointsEarned').innerHTML = `${basePoints} - ${punishment} = ${netScore}`;
+            } else {
+                document.getElementById('pointsEarned').textContent = basePoints;
+            }
         }
         
         document.getElementById('teamBonus').textContent = `+${Math.round((teamBonus - 1) * 100)}%`;
@@ -1161,7 +1202,7 @@ class DoppelgangerApp {
 
     // ============ DAY CHANGE DETECTION ============
     startDayChangeDetection() {
-        // Simple timer - check every 30 seconds if day changed
+        // Simple timer - check every 30 seconds if day changed (4:00 AM cutoff)
         setInterval(() => {
             const realToday = this.getRealTodayKey();
             
@@ -1180,6 +1221,62 @@ class DoppelgangerApp {
                 this.updateBattleTimer();
             }
         }, 1000);
+    }
+
+    // ============ CONFETTI CELEBRATION ============
+    showConfetti() {
+        // Create confetti container
+        const confettiContainer = document.createElement('div');
+        confettiContainer.id = 'confettiContainer';
+        document.body.appendChild(confettiContainer);
+
+        // Show congratulations message
+        const congrats = document.createElement('div');
+        congrats.className = 'perfect-day-congrats';
+        congrats.innerHTML = `
+            <div class="perfect-day-emoji">🎉</div>
+            <div class="perfect-day-title">PERFECT DAY!</div>
+            <div class="perfect-day-bonus">+5 Bonus Points</div>
+        `;
+        document.body.appendChild(congrats);
+
+        // Generate confetti
+        const colors = ['#00d4ff', '#00ff88', '#9945ff', '#ffd700', '#ff4444'];
+        const confettiCount = 100;
+
+        for (let i = 0; i < confettiCount; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = Math.random() > 0.5 ? 'confetti-piece confetti-round' : 'confetti-piece confetti-square';
+            
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const left = Math.random() * 100;
+            const animationDuration = 2 + Math.random() * 2;
+            const animationDelay = Math.random() * 0.5;
+            const size = Math.random() * 10 + 5;
+            const rotation = Math.random() * 360;
+            const drift = Math.random() * 200 - 100;
+            
+            confetti.style.cssText = `
+                left: ${left}%;
+                top: -10%;
+                width: ${size}px;
+                height: ${size}px;
+                background: ${color};
+                animation: confettiFall ${animationDuration}s linear ${animationDelay}s forwards;
+                transform: rotate(${rotation}deg);
+            `;
+            
+            // Add random horizontal drift during fall
+            confetti.style.setProperty('--drift', `${drift}px`);
+            
+            confettiContainer.appendChild(confetti);
+        }
+
+        // Remove after animation
+        setTimeout(() => {
+            confettiContainer.remove();
+            congrats.remove();
+        }, 4000);
     }
 
     // ============ DEBUG FUNCTIONS ============
