@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String   @id @default(cuid())
+  email                   String   @unique
+  username                String   @unique
+  passwordHash            String
+  avatarLevel             Int      @default(1)
+  totalPowerPoints        Float    @default(0)
+  doppelgangerPowerPoints Float    @default(0)
+  monthlyPoints           Float    @default(0)
+  currentStreak           Int      @default(0)
+  tier                    String   @default("bronze")
+  isPublic                Boolean  @default(true)
+  isTopTenPercent         Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  dailyLogs      DailyLog[]
+  habitStreaks   HabitStreak[]
+  teamMemberships TeamMember[]
+  battles        Battle[]
+  achievements   Achievement[]
+  refreshTokens  RefreshToken[]
+  ownedTeams     Team[]         @relation("TeamOwner")
+  monthlyArchive MonthlyArchive[]
+}
+
+model DailyLog {
+  id               String   @id @default(cuid())
+  userId           String
+  dateKey          String
+  completedHabits  String[] @default([])
+  punishmentApplied Boolean  @default(false)
+  perfectDayBonus  Boolean  @default(false)
+  pointsEarned     Float    @default(0)
+  penaltiesApplied Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dateKey])
+  @@index([userId, dateKey])
+}
+
+model HabitStreak {
+  id                String    @id @default(cuid())
+  userId            String
+  habitId           String
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  lastCompletedDate String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, habitId])
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  joinCode    String   @unique
+  description String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+
+  owner   User         @relation("TeamOwner", fields: [ownerId], references: [id])
+  members TeamMember[]
+  battles Battle[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  joinedAt DateTime @default(now())
+  role     String   @default("member")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model Battle {
+  id            String   @id @default(cuid())
+  userId        String
+  teamId        String?
+  weekStartDate String
+  weekEndDate   String
+  status        String   @default("active")
+  winnerId      String?
+  roundsData    Json     @default("[]")
+  isBossRaid    Boolean  @default(false)
+  bosspower     Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   Team?         @relation(fields: [teamId], references: [id])
+  rounds BattleRound[]
+}
+
+model BattleRound {
+  id                 String    @id @default(cuid())
+  battleId           String
+  dayNumber          Int
+  dateKey            String
+  userScore          Float     @default(0)
+  doppelgangerScore  Float     @default(0)
+  winnerId           String?
+  resolvedAt         DateTime?
+
+  battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, dayNumber])
+}
+
+model Achievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model MonthlyArchive {
+  id           String   @id @default(cuid())
+  userId       String
+  monthKey     String
+  rank         Int
+  points       Float
+  archivedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, monthKey])
+}
