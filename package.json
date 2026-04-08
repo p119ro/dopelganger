@@ -4,6 +4,7 @@
   "description": "Habit tracking app with multiplayer teams and battle system",
   "main": "server/server.js",
   "scripts": {
+    "postinstall": "prisma generate --schema=server/prisma/schema.prisma",
     "dev": "nodemon server/server.js",
     "start": "node server/server.js",
     "db:generate": "prisma generate --schema=server/prisma/schema.prisma",
