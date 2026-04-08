@@ -117,6 +117,7 @@
                 <button class="nav-btn" data-section="team">Team</button>
                 <button class="nav-btn" data-section="progress">Progress</button>
                 <button class="nav-btn" data-section="battle">Battle</button>
+                <button class="nav-btn" data-section="admin" id="adminNavBtn" style="display:none;color:#ff9900;">Admin</button>
             </nav>
             <div class="user-info">
                 <span class="current-tier" id="currentTier">Bronze</span>
@@ -481,7 +482,12 @@
         <!-- Team Section -->
         <section class="section" id="team">
             <div class="team-header">
-                <h2>Your Squad</h2>
+                <h2>Your Squad — <span id="teamNameDisplay" style="color:#00d4ff;font-size:1rem;"></span></h2>
+                <div id="teamCodeDisplay" style="display:none;align-items:center;gap:8px;">
+                  <span style="color:#888;font-size:.85rem;">Code:</span>
+                  <span id="teamJoinCode" style="font-family:monospace;font-size:1.1rem;color:#ffd700;letter-spacing:2px;"></span>
+                  <button onclick="navigator.clipboard.writeText(document.getElementById('teamJoinCode').textContent).then(()=>showToast('Copied!','success'))" style="background:none;border:1px solid #444;color:#888;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.75rem;">Copy</button>
+                </div>
                 <button class="create-team-btn" id="createTeamBtn">Create Team</button>
                 <button class="join-team-btn" id="joinTeamBtn">Join Team</button>
             </div>
@@ -748,6 +754,50 @@
                     </div>
                 </div>
             </div>
+        </section>
+
+        <!-- Admin Section -->
+        <section class="section" id="admin">
+          <div style="padding:24px;max-width:900px;margin:0 auto;">
+            <h2 style="color:#ff9900;margin-bottom:24px;">Admin Panel</h2>
+
+            <!-- Stats row -->
+            <div style="display:flex;gap:16px;margin-bottom:32px;flex-wrap:wrap;">
+              <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:20px;flex:1;min-width:140px;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:#00d4ff;" id="adminStatUsers">--</div>
+                <div style="color:#666;font-size:.85rem;margin-top:4px;">Total Users</div>
+              </div>
+              <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:20px;flex:1;min-width:140px;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:#00ff88;" id="adminStatVerified">--</div>
+                <div style="color:#666;font-size:.85rem;margin-top:4px;">Verified</div>
+              </div>
+              <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:20px;flex:1;min-width:140px;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:#ffd700;" id="adminStatTeams">--</div>
+                <div style="color:#666;font-size:.85rem;margin-top:4px;">Teams</div>
+              </div>
+              <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:20px;flex:1;min-width:140px;text-align:center;">
+                <div style="font-size:2rem;font-weight:700;color:#ff9900;" id="adminStatActive">--</div>
+                <div style="color:#666;font-size:.85rem;margin-top:4px;">Active Today</div>
+              </div>
+            </div>
+
+            <!-- Users -->
+            <div style="margin-bottom:32px;">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                <h3 style="margin:0;color:#ccc;">Users</h3>
+                <input id="adminUserSearch" type="text" placeholder="Search username / email..."
+                  style="flex:1;background:#0a0a14;border:1px solid #2a2a3e;border-radius:8px;padding:8px 12px;color:#fff;font-size:.9rem;outline:none;"
+                  oninput="adminSearchUsers(this.value)">
+              </div>
+              <div id="adminUserList" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+            <!-- Teams -->
+            <div>
+              <h3 style="margin:0 0 16px;color:#ccc;">Teams</h3>
+              <div id="adminTeamList" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+          </div>
         </section>
     </main>
 

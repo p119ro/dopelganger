@@ -303,7 +303,6 @@ router.post('/import-legacy', authLimiter, authMiddleware, async (req, res, next
     let imported = 0;
 
     for (const [dateKey, day] of Object.entries(dailyData)) {
-      // Validate dateKey format YYYY-MM-DD
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
       const completed = Array.isArray(day.completed) ? day.completed : [];
 
@@ -312,18 +311,53 @@ router.post('/import-legacy', authLimiter, authMiddleware, async (req, res, next
         create: {
           userId,
           dateKey,
-          completedHabits:  completed,
+          completedHabits:   completed,
           punishmentApplied: !!day.punishmentApplied,
-          perfectDayBonus:  !!day.perfectDayBonus,
-          pointsEarned:     day.pointsEarned || 0,
-          penaltiesApplied: day.penaltiesApplied || 0,
+          perfectDayBonus:   !!day.perfectDayBonus,
+          pointsEarned:      day.pointsEarned || 0,
+          penaltiesApplied:  day.penaltiesApplied || 0,
         },
         update: {}, // Don't overwrite existing cloud data
       });
       imported++;
     }
 
-    res.json({ ok: true, imported });
+    // Recalculate user stats from all logs
+    const allLogs = await prisma.dailyLog.findMany({
+      where:  { userId },
+      select: { dateKey: true, pointsEarned: true, completedHabits: true },
+    });
+
+    const totalPowerPoints = allLogs.reduce((s, l) => s + l.pointsEarned, 0);
+
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const monthlyPoints = allLogs
+      .filter(l => l.dateKey.startsWith(thisMonth))
+      .reduce((s, l) => s + l.pointsEarned, 0);
+
+    // Consecutive streak ending today (or yesterday if today has no log yet)
+    const activeDates = new Set(
+      allLogs.filter(l => l.completedHabits.length > 0).map(l => l.dateKey)
+    );
+    let currentStreak = 0;
+    const cursor = new Date();
+    // If today has no entry yet, start from yesterday
+    if (!activeDates.has(cursor.toISOString().slice(0, 10))) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    while (activeDates.has(cursor.toISOString().slice(0, 10))) {
+      currentStreak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    const tier = getTier(totalPowerPoints).name;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data:  { totalPowerPoints, monthlyPoints, currentStreak, tier },
+    });
+
+    res.json({ ok: true, imported, stats: { totalPowerPoints, monthlyPoints, currentStreak, tier } });
   } catch (err) {
     next(err);
   }

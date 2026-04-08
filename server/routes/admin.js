@@ -136,6 +136,33 @@ router.get('/activity', async (req, res, next) => {
   }
 });
 
+// ─── TEAMS ────────────────────────────────────────────────────────────────────
+router.get('/teams', async (req, res, next) => {
+  try {
+    const teams = await prisma.team.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        owner: { select: { username: true } },
+        members: { select: { userId: true, role: true, user: { select: { username: true } } } },
+      },
+    });
+    res.json({ teams: teams.map(t => ({
+      id: t.id, name: t.name, joinCode: t.joinCode,
+      owner: t.owner.username,
+      memberCount: t.members.length,
+      members: t.members.map(m => ({ username: m.user.username, role: m.role })),
+      createdAt: t.createdAt,
+    })) });
+  } catch (err) { next(err); }
+});
+
+router.delete('/teams/:id', async (req, res, next) => {
+  try {
+    await prisma.team.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function getTodayKey() {
   const now = new Date();

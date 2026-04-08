@@ -153,6 +153,37 @@ router.get('/leaderboard', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── KICK MEMBER ─────────────────────────────────────────────────────────────
+router.delete('/members/:targetUserId', async (req, res, next) => {
+  try {
+    const ownerId = req.user.userId;
+    const { targetUserId } = req.params;
+
+    if (targetUserId === ownerId) {
+      return res.status(400).json({ error: 'Use leave to exit your own team.' });
+    }
+
+    const ownerMembership = await prisma.teamMember.findFirst({
+      where: { userId: ownerId, role: 'owner' },
+    });
+    if (!ownerMembership) return res.status(403).json({ error: 'Only the team owner can kick members.' });
+
+    const target = await prisma.teamMember.findFirst({
+      where: { userId: targetUserId, teamId: ownerMembership.teamId },
+    });
+    if (!target) return res.status(404).json({ error: 'Member not found in your team.' });
+
+    await prisma.teamMember.delete({ where: { id: target.id } });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`team:${ownerMembership.teamId}`).emit('team:member_kicked', { userId: targetUserId });
+    }
+
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // ─── MEMBERS ──────────────────────────────────────────────────────────────────
 router.get('/:teamId/members', async (req, res, next) => {
   try {

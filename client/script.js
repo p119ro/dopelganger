@@ -307,6 +307,10 @@ function renderAll() {
   renderTeam();
   renderBattle();
   renderProgress();
+
+  // Show admin nav button for admins
+  const adminBtn = document.getElementById('adminNavBtn');
+  if (adminBtn) adminBtn.style.display = state.user?.isAdmin ? '' : 'none';
 }
 
 function renderHeader() {
@@ -410,16 +414,27 @@ function renderTeam() {
   const team = state.team;
 
   if (!team) {
-    // Show create/join UI
     document.querySelector('.team-content')?.classList.add('no-team');
+    setText('teamNameDisplay', '');
+    const codeEl = document.getElementById('teamCodeDisplay');
+    if (codeEl) codeEl.style.display = 'none';
     return;
   }
+
+  // Show team name and join code
+  setText('teamNameDisplay', team.name);
+  setText('teamJoinCode', team.joinCode);
+  const codeEl = document.getElementById('teamCodeDisplay');
+  if (codeEl) codeEl.style.display = 'flex';
 
   setText('teamScore', Math.round(team.teamScore));
   const fill = document.getElementById('collectiveFill');
   if (fill) fill.style.width = `${Math.min((team.teamScore / 500) * 100, 100)}%`;
   setText('teamGrade', `${team.gradeEmoji} ${team.grade}`);
   setText('teamMultiplier', `×${team.multiplier.toFixed(2)}`);
+
+  const isOwner = team.members.some(m => m.id === state.user?.id && m.role === 'owner')
+    || team.ownerId === state.user?.id;
 
   const list = document.getElementById('membersList');
   if (!list) return;
@@ -430,20 +445,38 @@ function renderTeam() {
     const slot = document.createElement('div');
     slot.className = `member-slot ${member ? '' : 'empty'}`;
     if (member) {
+      const isMe = member.id === state.user?.id;
+      const kickBtn = (isOwner && !isMe)
+        ? `<button onclick="kickMember('${member.id}')" style="margin-left:auto;background:none;border:1px solid #ff4444;color:#ff4444;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.75rem;">Kick</button>`
+        : '';
       slot.innerHTML = `
         <div class="member-avatar" style="background: ${tierColor(member.tier)}"></div>
         <div class="member-info">
-          <div class="member-name">${member.username}</div>
+          <div class="member-name">${member.username}${member.role === 'owner' ? ' 👑' : ''}</div>
           <div class="member-score">${Math.round(member.todayPoints)} pts today</div>
           <div class="member-streak">🔥 ${member.currentStreak}</div>
         </div>
-        <div class="member-tier">${member.tier}</div>`;
+        <div class="member-tier">${member.tier}</div>
+        ${kickBtn}`;
     } else {
       slot.innerHTML = `
         <div class="member-avatar placeholder"></div>
         <div class="member-info"><div class="member-name">Empty Slot</div><div class="member-score">--</div></div>`;
     }
     list.appendChild(slot);
+  }
+}
+
+async function kickMember(userId) {
+  if (!confirm('Kick this member from your team?')) return;
+  try {
+    await api.delete(`/api/teams/members/${userId}`);
+    const data = await api.get('/api/teams/mine');
+    state.team = data.team;
+    renderTeam();
+    showToast('Member kicked.', 'success');
+  } catch (err) {
+    showToast(err.message || 'Failed to kick member', 'error');
   }
 }
 
@@ -625,6 +658,16 @@ function setupEventListeners() {
   document.getElementById('prevDay')?.addEventListener('click', () => navigateDate(-1));
   document.getElementById('nextDay')?.addEventListener('click', () => navigateDate(1));
 
+  // Admin user search
+  const adminSearch = document.getElementById('adminUserSearch');
+  if (adminSearch) {
+    let searchTimer;
+    adminSearch.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => adminSearchUsers(adminSearch.value.trim()), 400);
+    });
+  }
+
   // Logout (add to header if needed)
   addLogoutButton();
 
@@ -785,6 +828,7 @@ function setupNavigation() {
       if (section === 'battle') renderBattleHistory();
       if (section === 'progress') renderProgress();
       if (section === 'team') renderTeamLeaderboard();
+      if (section === 'admin') { loadAdminStats(); loadAdminTeams(); }
     });
   });
 }
@@ -819,6 +863,113 @@ function showTeamModal(tab = 'create') {
 function hideModal() {
   document.getElementById('modalOverlay')?.classList.remove('active');
 }
+
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
+async function loadAdminStats() {
+  try {
+    const data = await api.get('/api/admin/stats');
+    setText('adminStatUsers', data.totalUsers);
+    setText('adminStatVerified', data.verifiedUsers);
+    setText('adminStatTeams', data.totalTeams);
+    setText('adminStatActive', data.activeToday);
+  } catch (err) {
+    showToast('Failed to load admin stats: ' + err.message, 'error');
+  }
+}
+
+async function adminSearchUsers(query = '') {
+  const list = document.getElementById('adminUserList');
+  if (!list) return;
+  list.innerHTML = '<div style="color:#555;padding:12px;">Loading...</div>';
+  try {
+    const url = query ? `/api/admin/users?search=${encodeURIComponent(query)}&limit=20` : '/api/admin/users?limit=20';
+    const data = await api.get(url);
+    if (!data.users.length) {
+      list.innerHTML = '<div style="color:#555;padding:12px;">No users found.</div>';
+      return;
+    }
+    list.innerHTML = data.users.map(u => `
+      <div style="background:#1a1a2e;border:1px solid #2a2a3e;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:150px;">
+          <div style="color:#fff;font-weight:700;">${u.username} ${u.isAdmin ? '<span style="color:#ff9900;font-size:.75rem;">[admin]</span>' : ''}</div>
+          <div style="color:#555;font-size:.8rem;">${u.email}</div>
+          <div style="color:#888;font-size:.75rem;">${u.tier} · ${u.totalPowerPoints} pts · streak ${u.currentStreak}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${!u.emailVerified ? `<button onclick="adminVerifyUser('${u.id}')" style="background:#00d4ff;color:#000;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:.75rem;font-weight:700;">Verify</button>` : '<span style="color:#00ff88;font-size:.75rem;">✓ Verified</span>'}
+          <button onclick="adminToggleAdmin('${u.id}')" style="background:#ff9900;color:#000;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:.75rem;font-weight:700;">${u.isAdmin ? 'Revoke Admin' : 'Make Admin'}</button>
+          <button onclick="adminDeleteUser('${u.id}', '${u.username}')" style="background:#ff4444;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:.75rem;font-weight:700;">Delete</button>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    list.innerHTML = `<div style="color:#ff4444;padding:12px;">${err.message}</div>`;
+  }
+}
+
+async function loadAdminTeams() {
+  const list = document.getElementById('adminTeamList');
+  if (!list) return;
+  list.innerHTML = '<div style="color:#555;padding:12px;">Loading...</div>';
+  try {
+    const data = await api.get('/api/admin/teams');
+    if (!data.teams.length) {
+      list.innerHTML = '<div style="color:#555;padding:12px;">No teams yet.</div>';
+      return;
+    }
+    list.innerHTML = data.teams.map(t => `
+      <div style="background:#1a1a2e;border:1px solid #2a2a3e;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:150px;">
+          <div style="color:#fff;font-weight:700;">${t.name}</div>
+          <div style="color:#888;font-size:.8rem;">Code: <span style="color:#00d4ff;">${t.joinCode}</span> · Owner: ${t.owner} · ${t.memberCount} members</div>
+          <div style="color:#555;font-size:.75rem;">${t.members.map(m => `${m.username}${m.role === 'owner' ? '👑' : ''}`).join(', ')}</div>
+        </div>
+        <button onclick="adminDeleteTeam('${t.id}', '${t.name.replace(/'/g, "\\'")}')" style="background:#ff4444;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:.75rem;font-weight:700;">Delete</button>
+      </div>`).join('');
+  } catch (err) {
+    list.innerHTML = `<div style="color:#ff4444;padding:12px;">${err.message}</div>`;
+  }
+}
+
+async function adminVerifyUser(userId) {
+  try {
+    await api.post(`/api/admin/users/${userId}/verify`);
+    showToast('User email verified.', 'success');
+    adminSearchUsers(document.getElementById('adminUserSearch')?.value || '');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function adminToggleAdmin(userId) {
+  try {
+    const data = await api.post(`/api/admin/users/${userId}/toggle-admin`);
+    showToast(`Admin status ${data.isAdmin ? 'granted' : 'revoked'}.`, 'success');
+    adminSearchUsers(document.getElementById('adminUserSearch')?.value || '');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function adminDeleteUser(userId, username) {
+  if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+  try {
+    await api.delete(`/api/admin/users/${userId}`);
+    showToast(`User "${username}" deleted.`, 'success');
+    adminSearchUsers(document.getElementById('adminUserSearch')?.value || '');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function adminDeleteTeam(teamId, name) {
+  if (!confirm(`Delete team "${name}"? All members will be removed.`)) return;
+  try {
+    await api.delete(`/api/admin/teams/${teamId}`);
+    showToast(`Team "${name}" deleted.`, 'success');
+    loadAdminTeams();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// Expose admin functions globally (called from inline onclick)
+window.kickMember = kickMember;
+window.adminVerifyUser = adminVerifyUser;
+window.adminToggleAdmin = adminToggleAdmin;
+window.adminDeleteUser = adminDeleteUser;
+window.adminDeleteTeam = adminDeleteTeam;
 
 // ─── SKELETONS ────────────────────────────────────────────────────────────────
 function showSkeletons() {
