@@ -1,5 +1,5 @@
 // Doppelganger — Frontend (API-backed, no localStorage)
-// Communicates with Node/Express backend via api.js
+// Communicates with Node/Express backend via api.js.
 
 import api, { setAccessToken, clearAccessToken } from './api.js';
 import { initSocket } from './socket.js';
