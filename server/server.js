@@ -57,6 +57,7 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable for dev; tighten in prod
   crossOriginEmbedderPolicy: false,
 }));
+app.options('*', cors(corsOptions)); // explicit preflight for all routes
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
