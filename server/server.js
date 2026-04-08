@@ -121,6 +121,9 @@ httpServer.listen(PORT, () => {
   console.log(`[server] Doppelganger running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
 });
 
+process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err));
+process.on('unhandledRejection', (err) => console.error('[crash] unhandledRejection:', err));
+
 // ─── GRACEFUL SHUTDOWN ───────────────────────────────────────────────────────
 const shutdown = async (signal) => {
   console.log(`[server] ${signal} received — shutting down`);
