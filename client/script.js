@@ -37,7 +37,7 @@ const state = {
   currentSection: 'dashboard',
 };
 
-// Expose globally for socket.js callbacks.
+// Expose globally for socket.js callbacks
 window.__APP__ = { state };
 
 // ─── DATE UTILS ───────────────────────────────────────────────────────────────
