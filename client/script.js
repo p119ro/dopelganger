@@ -87,29 +87,41 @@ function createAuthScreen() {
   const div = document.createElement('div');
   div.id = 'auth-screen';
   div.innerHTML = `
-    <div class="auth-overlay">
-      <div class="auth-card">
-        <div class="auth-logo">
-          <h1>DOPPELGANGER</h1>
-          <p class="auth-tagline">Become the One Who Wins</p>
-        </div>
-        <div class="auth-tabs">
-          <button class="auth-tab active" data-tab="login">Login</button>
-          <button class="auth-tab" data-tab="register">Register</button>
-        </div>
-        <div id="auth-login" class="auth-form">
-          <input type="email" id="login-email" placeholder="Email" autocomplete="email">
-          <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
-          <button class="auth-btn" id="login-btn">Login</button>
-          <p id="login-error" class="auth-error"></p>
-        </div>
-        <div id="auth-register" class="auth-form hidden">
-          <input type="email" id="reg-email" placeholder="Email" autocomplete="email">
-          <input type="text" id="reg-username" placeholder="Username (3-20 chars, letters/numbers/_)" autocomplete="username">
-          <input type="password" id="reg-password" placeholder="Password (min 8 chars)" autocomplete="new-password">
-          <button class="auth-btn" id="register-btn">Create Account</button>
-          <p id="reg-error" class="auth-error"></p>
-        </div>
+    <div class="auth-card">
+      <div class="auth-logo">
+        <h1>DOPPELGANGER</h1>
+        <p class="auth-tagline">Become the One Who Wins</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+
+      <!-- Login form -->
+      <div id="auth-login" class="auth-form">
+        <input type="email"    id="login-email"    placeholder="Email"    autocomplete="email">
+        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+        <button class="auth-btn" id="login-btn">Login</button>
+        <p id="login-error" class="auth-error"></p>
+      </div>
+
+      <!-- Register form -->
+      <div id="auth-register" class="auth-form hidden">
+        <input type="email"    id="reg-email"     placeholder="Email"                              autocomplete="email">
+        <input type="text"     id="reg-username"  placeholder="Username (3–20 chars, a–z 0–9 _)"  autocomplete="username">
+        <input type="password" id="reg-password"  placeholder="Password (min 8 characters)"       autocomplete="new-password">
+        <button class="auth-btn" id="register-btn">Create Account</button>
+        <p id="reg-error" class="auth-error"></p>
+      </div>
+
+      <!-- Email verification notice (shown after register when email is configured) -->
+      <div id="auth-verify" class="verify-notice hidden">
+        <div class="icon">📬</div>
+        <h3>Check your email</h3>
+        <p>We sent a verification link to <strong id="verify-email-addr"></strong>.<br>
+           Click it to activate your account, then log in.</p>
+        <button class="auth-resend" id="resend-btn">Resend verification email</button>
+        <p id="resend-msg" class="auth-hint" style="margin-top:8px"></p>
       </div>
     </div>`;
 
@@ -117,58 +129,96 @@ function createAuthScreen() {
   div.querySelectorAll('.auth-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       div.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
-      div.querySelectorAll('.auth-form').forEach(f => f.classList.add('hidden'));
+      div.querySelectorAll('.auth-form, .verify-notice').forEach(f => f.classList.add('hidden'));
       btn.classList.add('active');
       div.querySelector(`#auth-${btn.dataset.tab}`).classList.remove('hidden');
     });
   });
 
-  // Login
+  // Enter-key shortcuts
+  const loginPass = div.querySelector('#login-password');
+  loginPass.addEventListener('keydown', e => { if (e.key === 'Enter') div.querySelector('#login-btn').click(); });
+  div.querySelector('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') loginPass.focus(); });
+  div.querySelector('#reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') div.querySelector('#register-btn').click(); });
+
+  // ── Login ──
   div.querySelector('#login-btn').addEventListener('click', async () => {
-    const email = div.querySelector('#login-email').value.trim();
+    const email    = div.querySelector('#login-email').value.trim();
     const password = div.querySelector('#login-password').value;
-    const errEl = div.querySelector('#login-error');
+    const errEl    = div.querySelector('#login-error');
     errEl.textContent = '';
+    const btn = div.querySelector('#login-btn');
+    btn.disabled = true;
     try {
-      div.querySelector('#login-btn').disabled = true;
       const data = await api.post('/api/auth/login', { email, password });
       setAccessToken(data.accessToken);
       storeTokenForSocket(data.accessToken);
       await initApp(data.user);
       hideAuthScreen();
+      checkLegacyMigration();
     } catch (e) {
-      errEl.textContent = e.message;
-    } finally {
-      div.querySelector('#login-btn').disabled = false;
-    }
-  });
-
-  // Register
-  div.querySelector('#register-btn').addEventListener('click', async () => {
-    const email = div.querySelector('#reg-email').value.trim();
-    const username = div.querySelector('#reg-username').value.trim();
-    const password = div.querySelector('#reg-password').value;
-    const errEl = div.querySelector('#reg-error');
-    errEl.textContent = '';
-    try {
-      div.querySelector('#register-btn').disabled = true;
-      const data = await api.post('/api/auth/register', { email, username, password });
-      setAccessToken(data.accessToken);
-      storeTokenForSocket(data.accessToken);
-      await initApp(data.user);
-      hideAuthScreen();
-    } catch (e) {
-      if (e.details) {
-        errEl.textContent = e.details.map(d => d.message).join(', ');
+      if (e.status === 403 && e.message.includes('verify')) {
+        errEl.textContent = '';
+        showVerifyNotice(div, email);
       } else {
         errEl.textContent = e.message;
       }
     } finally {
-      div.querySelector('#register-btn').disabled = false;
+      btn.disabled = false;
+    }
+  });
+
+  // ── Register ──
+  div.querySelector('#register-btn').addEventListener('click', async () => {
+    const email    = div.querySelector('#reg-email').value.trim();
+    const username = div.querySelector('#reg-username').value.trim();
+    const password = div.querySelector('#reg-password').value;
+    const errEl    = div.querySelector('#reg-error');
+    errEl.textContent = '';
+    const btn = div.querySelector('#register-btn');
+    btn.disabled = true;
+    try {
+      const data = await api.post('/api/auth/register', { email, username, password });
+      if (data.emailVerificationSent) {
+        // Show "check your email" instead of logging in immediately
+        showVerifyNotice(div, email);
+      } else {
+        // No email service configured → auto-verified, log straight in
+        setAccessToken(data.accessToken);
+        storeTokenForSocket(data.accessToken);
+        await initApp(data.user);
+        hideAuthScreen();
+        checkLegacyMigration();
+      }
+    } catch (e) {
+      errEl.textContent = e.details
+        ? e.details.map(d => d.message).join(', ')
+        : e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── Resend verification ──
+  div.querySelector('#resend-btn').addEventListener('click', async () => {
+    const email = div.querySelector('#verify-email-addr').textContent;
+    const msgEl = div.querySelector('#resend-msg');
+    try {
+      await api.post('/api/auth/resend-verification', { email });
+      msgEl.textContent = 'Email resent! Check your inbox.';
+    } catch {
+      msgEl.textContent = 'Could not resend. Try again later.';
     }
   });
 
   return div;
+}
+
+function showVerifyNotice(authDiv, email) {
+  authDiv.querySelectorAll('.auth-form, .auth-tabs').forEach(el => el.classList.add('hidden'));
+  const notice = authDiv.querySelector('#auth-verify');
+  authDiv.querySelector('#verify-email-addr').textContent = email;
+  notice.classList.remove('hidden');
 }
 
 // ─── APP INIT ─────────────────────────────────────────────────────────────────
@@ -190,6 +240,8 @@ async function bootstrap() {
     storeTokenForSocket(data.accessToken);
     const meData = await api.get('/api/auth/me');
     await initApp(meData.user);
+    hideAuthScreen();
+    checkLegacyMigration();
   } catch {
     showAuthScreen();
   }
@@ -833,9 +885,89 @@ function formatDate(dateKey) {
   return new Date(dateKey + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+// ─── LEGACY LOCALSTORAGE MIGRATION ───────────────────────────────────────────
+// Called after a successful login or session restore.
+// If the user has old localStorage data (from before the API-backed version),
+// offer to import it once, then clear it.
+async function checkLegacyMigration() {
+  const MIGRATED_KEY = 'dg_migrated_v1';
+  if (localStorage.getItem(MIGRATED_KEY)) return; // already done
+
+  let legacyRaw;
+  try { legacyRaw = localStorage.getItem('doppelganger_data'); } catch { return; }
+  if (!legacyRaw) return;
+
+  let legacyData;
+  try { legacyData = JSON.parse(legacyRaw); } catch { return; }
+
+  const dailyData = legacyData.dailyData;
+  if (!dailyData || !Object.keys(dailyData).length) {
+    localStorage.setItem(MIGRATED_KEY, '1');
+    return;
+  }
+
+  // Show a non-blocking toast asking to migrate
+  showMigrationBanner(dailyData);
+}
+
+function showMigrationBanner(dailyData) {
+  const days = Object.keys(dailyData).length;
+  const banner = document.createElement('div');
+  banner.id = 'migration-banner';
+  banner.style.cssText = `
+    position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9998;
+    background:#1a1a2e;border:1px solid rgba(0,212,255,.3);border-radius:10px;
+    padding:18px 22px;width:420px;max-width:95vw;box-shadow:0 8px 30px rgba(0,0,0,.7);
+  `;
+  banner.innerHTML = `
+    <p style="color:#00d4ff;font-weight:700;margin:0 0 6px;">Import your old progress?</p>
+    <p style="color:#888;font-size:.85rem;margin:0 0 14px;">
+      We found <strong style="color:#fff">${days} days</strong> of local data from the old version.
+      Import it to your account so you never lose your streak.
+    </p>
+    <div style="display:flex;gap:10px;">
+      <button id="migrate-yes" style="flex:1;padding:9px;background:#00d4ff;color:#000;border:none;
+              border-radius:6px;font-weight:700;cursor:pointer;">Import</button>
+      <button id="migrate-no"  style="flex:1;padding:9px;background:transparent;color:#666;
+              border:1px solid #333;border-radius:6px;cursor:pointer;">Skip</button>
+    </div>`;
+
+  document.body.appendChild(banner);
+
+  document.getElementById('migrate-yes').addEventListener('click', async () => {
+    banner.remove();
+    try {
+      const result = await api.post('/api/auth/import-legacy', { dailyData });
+      localStorage.setItem('dg_migrated_v1', '1');
+      showToast(`Imported ${result.imported} days of history!`, 'success');
+      // Refresh user data
+      const meData = await api.get('/api/auth/me').catch(() => null);
+      if (meData) { state.user = meData.user; renderAll(); }
+    } catch (e) {
+      showToast(`Import failed: ${e.message}`, 'error');
+    }
+  });
+
+  document.getElementById('migrate-no').addEventListener('click', () => {
+    banner.remove();
+    localStorage.setItem('dg_migrated_v1', '1');
+  });
+}
+
+// Handle ?verified=1 query param (redirect from email verification link)
+function checkVerifiedParam() {
+  if (new URLSearchParams(window.location.search).get('verified') === '1') {
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname);
+    showToast('Email verified! You can now log in.', 'success');
+  }
+}
+
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
-// Expose showToast globally for socket.js
 window.__APP__ = window.__APP__ || {};
 window.__APP__.showToast = showToast;
 
-document.addEventListener('DOMContentLoaded', bootstrap);
+document.addEventListener('DOMContentLoaded', () => {
+  checkVerifiedParam();
+  bootstrap();
+});

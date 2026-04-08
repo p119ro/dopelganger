@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doppelganger — Admin</title>
+  <style>
+    :root {
+      --bg: #0a0a0a; --bg2: #141420; --bg3: #1e1e2e;
+      --blue: #00d4ff; --green: #00ff88; --red: #ff4444;
+      --gold: #ffd700; --text: #fff; --muted: #666;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Login ── */
+    #login-screen { position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999; }
+    .login-card { background:var(--bg2);border:1px solid rgba(0,212,255,.2);border-radius:12px;padding:40px;width:360px;max-width:95vw; }
+    .login-card h1 { color:var(--blue);margin-bottom:4px;letter-spacing:2px; }
+    .login-card p { color:var(--muted);margin-bottom:24px;font-size:.85rem; }
+    input { width:100%;background:#0d0d1a;border:1px solid #333;border-radius:6px;padding:10px 14px;
+            color:var(--text);font-size:.95rem;margin-bottom:12px;outline:none; }
+    input:focus { border-color:var(--blue); }
+    .btn { display:inline-block;padding:10px 20px;border:none;border-radius:6px;cursor:pointer;
+           font-weight:700;font-size:.9rem;transition:.2s; }
+    .btn-primary { background:var(--blue);color:#0d0d1a; }
+    .btn-primary:hover { background:#00b8e6; }
+    .btn-primary:disabled { opacity:.5;cursor:not-allowed; }
+    .btn-danger  { background:transparent;border:1px solid var(--red);color:var(--red);padding:5px 12px;font-size:.8rem; }
+    .btn-danger:hover { background:var(--red);color:#fff; }
+    .btn-sm      { background:transparent;border:1px solid #444;color:#888;padding:5px 12px;font-size:.8rem; }
+    .btn-sm:hover { border-color:var(--blue);color:var(--blue); }
+    .error { color:var(--red);font-size:.85rem;min-height:1.2rem;margin-top:-4px;margin-bottom:8px; }
+
+    /* ── Layout ── */
+    #app { display:none;min-height:100vh; }
+    header { background:var(--bg2);border-bottom:1px solid #222;padding:14px 24px;
+             display:flex;align-items:center;justify-content:space-between; }
+    header h1 { color:var(--blue);font-size:1.2rem;letter-spacing:2px; }
+    header span { color:var(--muted);font-size:.85rem; }
+    .logout-btn { background:none;border:1px solid #444;color:#888;border-radius:4px;
+                  padding:5px 12px;cursor:pointer;font-size:.8rem; }
+    .logout-btn:hover { border-color:var(--red);color:var(--red); }
+    main { max-width:1200px;margin:0 auto;padding:24px 16px; }
+
+    /* ── Stats ── */
+    .stats-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px; }
+    .stat-box { background:var(--bg2);border:1px solid #222;border-radius:8px;padding:16px;text-align:center; }
+    .stat-box .val { font-size:2rem;font-weight:700;color:var(--blue); }
+    .stat-box .lbl { color:var(--muted);font-size:.8rem;margin-top:4px; }
+
+    /* ── Tables ── */
+    .section-title { font-size:1.1rem;color:var(--blue);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #222; }
+    .table-wrap { overflow-x:auto;margin-bottom:32px; }
+    table { width:100%;border-collapse:collapse;font-size:.85rem; }
+    th { background:var(--bg3);color:var(--muted);text-align:left;padding:8px 12px;font-weight:600; }
+    td { padding:8px 12px;border-bottom:1px solid #1a1a2e;vertical-align:middle; }
+    tr:hover td { background:rgba(255,255,255,.02); }
+    .badge { display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600; }
+    .badge-green { background:rgba(0,255,136,.1);color:var(--green); }
+    .badge-red   { background:rgba(255,68,68,.1);color:var(--red); }
+    .badge-gold  { background:rgba(255,215,0,.1);color:var(--gold); }
+    .badge-blue  { background:rgba(0,212,255,.1);color:var(--blue); }
+
+    /* ── Search ── */
+    .toolbar { display:flex;gap:10px;margin-bottom:14px;align-items:center; }
+    .toolbar input { margin:0;max-width:280px; }
+
+    /* ── Toast ── */
+    #toast { position:fixed;bottom:24px;right:24px;background:var(--bg2);border-left:3px solid var(--blue);
+             border-radius:6px;padding:12px 18px;font-size:.9rem;opacity:0;transition:.25s;pointer-events:none;z-index:9999; }
+    #toast.show { opacity:1; }
+    #toast.err { border-color:var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>DOPPELGANGER</h1>
+    <p>Admin Panel — authorized access only</p>
+    <input type="email"    id="adm-email"    placeholder="Admin email">
+    <input type="password" id="adm-password" placeholder="Password">
+    <p id="adm-error" class="error"></p>
+    <button class="btn btn-primary" id="adm-login-btn" style="width:100%">Login</button>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app">
+  <header>
+    <h1>DOPPELGANGER — Admin</h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="admin-name"></span>
+      <button class="logout-btn" id="adm-logout">Logout</button>
+    </div>
+  </header>
+  <main>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-box"><div class="val" id="s-total">—</div><div class="lbl">Total Users</div></div>
+      <div class="stat-box"><div class="val" id="s-verified">—</div><div class="lbl">Verified</div></div>
+      <div class="stat-box"><div class="val" id="s-active">—</div><div class="lbl">Active Today</div></div>
+      <div class="stat-box"><div class="val" id="s-teams">—</div><div class="lbl">Teams</div></div>
+    </div>
+
+    <!-- Users -->
+    <div class="section-title">Users</div>
+    <div class="toolbar">
+      <input type="text" id="search-input" placeholder="Search username or email…" style="max-width:280px">
+      <button class="btn btn-sm" id="search-btn">Search</button>
+      <button class="btn btn-sm" id="refresh-users-btn">Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th><th>Email</th><th>Verified</th><th>Admin</th>
+            <th>Tier</th><th>Points</th><th>Streak</th><th>Joined</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+    <div id="pagination" style="display:flex;gap:8px;margin-bottom:32px;"></div>
+
+    <!-- Recent Activity -->
+    <div class="section-title">Recent Activity (last 7 days)</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>User</th><th>Tier</th><th>Habits Done</th><th>Points</th></tr>
+        </thead>
+        <tbody id="activity-tbody"></tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';  // same origin; change to backend URL if hosting separately
+let _token = null;
+let _currentPage = 1;
+
+function toast(msg, err = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (err ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3000);
+}
+
+async function apiFetch(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (_token) headers['Authorization'] = `Bearer ${_token}`;
+  const res = await fetch(API + path, { ...opts, headers, credentials: 'include' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── LOGIN ──
+document.getElementById('adm-login-btn').addEventListener('click', async () => {
+  const email    = document.getElementById('adm-email').value.trim();
+  const password = document.getElementById('adm-password').value;
+  const errEl    = document.getElementById('adm-error');
+  errEl.textContent = '';
+
+  const btn = document.getElementById('adm-login-btn');
+  btn.disabled = true;
+  try {
+    const data = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    _token = data.accessToken;
+
+    if (!data.user.isAdmin) {
+      errEl.textContent = 'Access denied — this account is not an admin.';
+      _token = null;
+      return;
+    }
+
+    document.getElementById('admin-name').textContent = data.user.username;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadStats();
+    loadUsers();
+    loadActivity();
+  } catch (e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('adm-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('adm-password').focus();
+});
+document.getElementById('adm-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('adm-login-btn').click();
+});
+
+// ── LOGOUT ──
+document.getElementById('adm-logout').addEventListener('click', () => {
+  _token = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+});
+
+// ── STATS ──
+async function loadStats() {
+  try {
+    const data = await apiFetch('/api/admin/stats');
+    document.getElementById('s-total').textContent    = data.totalUsers;
+    document.getElementById('s-verified').textContent = data.verifiedUsers;
+    document.getElementById('s-active').textContent   = data.activeToday;
+    document.getElementById('s-teams').textContent    = data.totalTeams;
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── USERS ──
+document.getElementById('search-btn').addEventListener('click', () => loadUsers(1));
+document.getElementById('refresh-users-btn').addEventListener('click', () => loadUsers(_currentPage));
+document.getElementById('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadUsers(1);
+});
+
+async function loadUsers(page = 1) {
+  _currentPage = page;
+  const search = document.getElementById('search-input').value.trim();
+  const qs = new URLSearchParams({ page, limit: 50, ...(search ? { search } : {}) });
+  try {
+    const data = await apiFetch(`/api/admin/users?${qs}`);
+    renderUsers(data.users);
+    renderPagination(data.page, data.pages);
+  } catch (e) { toast(e.message, true); }
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = users.map(u => `
+    <tr data-id="${u.id}">
+      <td><strong>${esc(u.username)}</strong></td>
+      <td style="color:#888">${esc(u.email)}</td>
+      <td>${u.emailVerified
+        ? '<span class="badge badge-green">✓ Yes</span>'
+        : '<span class="badge badge-red">✗ No</span>'}</td>
+      <td>${u.isAdmin ? '<span class="badge badge-gold">Admin</span>' : '—'}</td>
+      <td><span class="badge badge-blue">${u.tier}</span></td>
+      <td>${Math.round(u.totalPowerPoints)}</td>
+      <td>🔥 ${u.currentStreak}</td>
+      <td style="color:#666">${new Date(u.createdAt).toLocaleDateString()}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${!u.emailVerified ? `<button class="btn btn-sm" onclick="forceVerify('${u.id}')">Verify</button>` : ''}
+        <button class="btn btn-sm" onclick="toggleAdmin('${u.id}', ${u.isAdmin})">${u.isAdmin ? 'Revoke Admin' : 'Make Admin'}</button>
+        <button class="btn btn-danger" onclick="deleteUser('${u.id}', '${esc(u.username)}')">Delete</button>
+      </td>
+    </tr>`).join('');
+}
+
+function renderPagination(page, pages) {
+  const el = document.getElementById('pagination');
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  for (let i = 1; i <= pages; i++) {
+    html += `<button class="btn btn-sm" style="${i === page ? 'border-color:#00d4ff;color:#00d4ff' : ''}"
+               onclick="loadUsers(${i})">${i}</button>`;
+  }
+  el.innerHTML = html;
+}
+
+async function forceVerify(id) {
+  try {
+    await apiFetch(`/api/admin/users/${id}/verify`, { method: 'POST' });
+    toast('User verified');
+    loadUsers(_currentPage);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function toggleAdmin(id, currentlyAdmin) {
+  if (!confirm(currentlyAdmin ? 'Revoke admin?' : 'Make this user an admin?')) return;
+  try {
+    await apiFetch(`/api/admin/users/${id}/toggle-admin`, { method: 'POST' });
+    toast('Admin status updated');
+    loadUsers(_currentPage);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Permanently delete user "${username}"? This cannot be undone.`)) return;
+  try {
+    await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+    toast(`Deleted ${username}`);
+    loadUsers(_currentPage);
+    loadStats();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── ACTIVITY ──
+async function loadActivity() {
+  try {
+    const data = await apiFetch('/api/admin/activity?days=7');
+    const tbody = document.getElementById('activity-tbody');
+    tbody.innerHTML = data.logs.map(l => `
+      <tr>
+        <td>${l.dateKey}</td>
+        <td><strong>${esc(l.user.username)}</strong></td>
+        <td><span class="badge badge-blue">${l.user.tier}</span></td>
+        <td>${l.completedHabits.length}/9</td>
+        <td style="color:#ffd700">${Math.round(l.pointsEarned)} pts</td>
+      </tr>`).join('') || '<tr><td colspan="5" style="color:#555;padding:20px">No activity yet</td></tr>';
+  } catch (e) { toast(e.message, true); }
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

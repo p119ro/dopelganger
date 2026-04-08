@@ -21,6 +21,7 @@ const habitRoutes = require('./routes/habits');
 const teamRoutes = require('./routes/teams');
 const battleRoutes = require('./routes/battles');
 const leaderboardRoutes = require('./routes/leaderboard');
+const adminRoutes = require('./routes/admin');
 
 const { generalLimiter } = require('./middleware/rateLimit');
 const errorHandler = require('./middleware/errorHandler');
@@ -84,6 +85,7 @@ app.use('/api/habits', habitRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/battles', battleRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ─── CATCH-ALL → SPA ─────────────────────────────────────────────────────────
 app.get('*', (req, res) => {

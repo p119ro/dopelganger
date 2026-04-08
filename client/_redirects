@@ -1,0 +1,8 @@
+# Netlify _redirects
+# This proxies /api/* to your backend.
+# Replace https://your-backend.up.railway.app with your actual backend URL.
+#
+# To use: uncomment the lines below and replace the URL.
+
+# /api/*   https://your-backend.up.railway.app/api/:splat   200
+# /*       /index.html                                        200

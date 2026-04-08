@@ -9,11 +9,15 @@ datasource db {
 }
 
 model User {
-  id                      String   @id @default(cuid())
-  email                   String   @unique
-  username                String   @unique
+  id                      String    @id @default(cuid())
+  email                   String    @unique
+  username                String    @unique
   passwordHash            String
-  avatarLevel             Int      @default(1)
+  emailVerified           Boolean   @default(false)
+  emailVerifyToken        String?   @unique
+  emailVerifyExpires      DateTime?
+  isAdmin                 Boolean   @default(false)
+  avatarLevel             Int       @default(1)
   totalPowerPoints        Float    @default(0)
   doppelgangerPowerPoints Float    @default(0)
   monthlyPoints           Float    @default(0)

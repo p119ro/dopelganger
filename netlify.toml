@@ -1,0 +1,38 @@
+# Netlify config for Doppelganger frontend
+#
+# This deploys the static client/ folder.
+# The Node.js backend must be hosted separately (Railway, Render, Fly.io, etc.)
+# and its URL set in the BACKEND_URL environment variable in Netlify UI.
+#
+# Steps:
+#  1. Deploy backend (node server/server.js) on Railway/Render
+#  2. In Netlify Site Settings → Environment Variables, add:
+#       BACKEND_URL = https://your-backend.up.railway.app
+#  3. Push this repo to Netlify – it will serve client/ and proxy /api/* to backend
+
+[build]
+  publish = "client"
+  # No build command needed — pure static files
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# ── API proxy → backend server ────────────────────────────────────────────────
+# Netlify rewrites /api/* and /socket.io/* to the backend.
+# NOTE: WebSocket connections (socket.io) need the backend URL hardcoded in the
+# frontend because Netlify can only proxy HTTP, not WebSocket upgrades.
+# Set window.API_BASE in client/index.html OR use the _redirects approach below.
+
+[[redirects]]
+  from   = "/api/*"
+  to     = ":BACKEND_URL/api/:splat"
+  status = 200
+  force  = true
+
+# socket.io uses WebSockets which Netlify can't proxy — handled via API_BASE in JS
+
+# ── SPA fallback ──────────────────────────────────────────────────────────────
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
