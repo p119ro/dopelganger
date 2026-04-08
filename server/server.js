@@ -33,15 +33,16 @@ const httpServer = http.createServer(app);
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
 
+console.log('[cors] allowed origins:', allowedOrigins);
+
 // Raw CORS middleware — runs before helmet and everything else
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (!origin || allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Cookie');
-  }
+  console.log('[cors] request origin:', origin, '| match:', allowedOrigins.includes(origin));
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Cookie');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
