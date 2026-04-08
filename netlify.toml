@@ -13,7 +13,7 @@
 [build]
   publish = "client"
   # Injects the backend URL into index.html at build time
-  command = "sed -i \"s|__BACKEND_URL__|${BACKEND_URL}|g\" client/index.html"
+  command = "cp -r favicon_io client/favicon_io && sed -i \"s|__BACKEND_URL__|${BACKEND_URL}|g\" client/index.html"
 
 [build.environment]
   NODE_VERSION = "20"
