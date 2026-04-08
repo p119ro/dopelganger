@@ -33,12 +33,21 @@ const httpServer = http.createServer(app);
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
 
+// Raw CORS middleware — runs before helmet and everything else
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Cookie');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 const corsOptions = {
-  origin: (origin, cb) => {
-    // Allow requests with no origin (curl, mobile apps, same-origin server calls)
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(null, false);
-  },
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 };
@@ -54,10 +63,9 @@ app.set('io', io);
 
 // ─── MIDDLEWARE ──────────────────────────────────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for dev; tighten in prod
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
-app.options('*', cors(corsOptions)); // explicit preflight for all routes
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
