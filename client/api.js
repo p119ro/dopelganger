@@ -4,6 +4,13 @@
 let _accessToken = null;
 let _refreshing = null; // Promise lock to prevent concurrent refresh calls
 
+// API_BASE is injected by the build step (netlify.toml sed replacement).
+// Falls back to '' (same origin) for local dev where the placeholder is unreplaced.
+const _apiBase = (() => {
+  const b = window.API_BASE || '';
+  return b.includes('__BACKEND') ? '' : b.replace(/\/$/, '');
+})();
+
 export function setAccessToken(token) {
   _accessToken = token;
 }
@@ -15,7 +22,7 @@ export function clearAccessToken() {
 async function refreshToken() {
   if (_refreshing) return _refreshing;
 
-  _refreshing = fetch('/api/auth/refresh', {
+  _refreshing = fetch(_apiBase + '/api/auth/refresh', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -42,7 +49,7 @@ async function request(method, path, body) {
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
 
-  let res = await fetch(path, opts);
+  let res = await fetch(_apiBase + path, opts);
 
   // Token expired — try to refresh once
   if (res.status === 401) {
@@ -51,7 +58,7 @@ async function request(method, path, body) {
       try {
         await refreshToken();
         headers['Authorization'] = `Bearer ${_accessToken}`;
-        res = await fetch(path, { ...opts, headers });
+        res = await fetch(_apiBase + path, { ...opts, headers });
       } catch {
         clearAccessToken();
         window.dispatchEvent(new CustomEvent('auth:logout'));

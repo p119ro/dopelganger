@@ -1,35 +1,22 @@
-# Netlify config for Doppelganger frontend
+# Netlify config for Doppelganger
 #
-# This deploys the static client/ folder.
-# The Node.js backend must be hosted separately (Railway, Render, Fly.io, etc.)
-# and its URL set in the BACKEND_URL environment variable in Netlify UI.
-#
-# Steps:
-#  1. Deploy backend (node server/server.js) on Railway/Render
-#  2. In Netlify Site Settings → Environment Variables, add:
-#       BACKEND_URL = https://your-backend.up.railway.app
-#  3. Push this repo to Netlify – it will serve client/ and proxy /api/* to backend
+# SETUP:
+# 1. Deploy the Node.js backend on Railway (railway.app) — just connect your GitHub repo.
+#    Railway will use the Dockerfile automatically.
+# 2. Copy all env vars from .env into Railway's environment settings.
+#    Set APP_URL = https://your-app.up.railway.app
+#    Set CORS_ORIGIN = https://dopelganger.netlify.app
+# 3. In Netlify → Site Settings → Environment Variables, add:
+#    BACKEND_URL = https://your-app.up.railway.app  (no trailing slash)
+# 4. Trigger a new Netlify deploy (or push a commit) — done.
 
 [build]
   publish = "client"
-  # No build command needed — pure static files
+  # Injects the backend URL into index.html at build time
+  command = "sed -i \"s|__BACKEND_URL__|${BACKEND_URL}|g\" client/index.html"
 
 [build.environment]
   NODE_VERSION = "20"
-
-# ── API proxy → backend server ────────────────────────────────────────────────
-# Netlify rewrites /api/* and /socket.io/* to the backend.
-# NOTE: WebSocket connections (socket.io) need the backend URL hardcoded in the
-# frontend because Netlify can only proxy HTTP, not WebSocket upgrades.
-# Set window.API_BASE in client/index.html OR use the _redirects approach below.
-
-[[redirects]]
-  from   = "/api/*"
-  to     = ":BACKEND_URL/api/:splat"
-  status = 200
-  force  = true
-
-# socket.io uses WebSockets which Netlify can't proxy — handled via API_BASE in JS
 
 # ── SPA fallback ──────────────────────────────────────────────────────────────
 [[redirects]]

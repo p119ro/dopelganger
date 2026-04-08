@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon_io/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon_io/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="manifest" href="/favicon_io/site.webmanifest">
     <style>
       /* ── AUTH SCREEN ── */
       #auth-screen { position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;
@@ -785,8 +785,10 @@
         </div>
     </footer>
 
-    <!-- Socket.IO client via CDN -->
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Backend URL injected at build time by netlify.toml (empty = same origin for local dev) -->
+    <script>window.API_BASE = '__BACKEND_URL__'; window.SOCKET_URL = '__BACKEND_URL__';</script>
+    <!-- Socket.IO — loaded from CDN so it works on Netlify -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" crossorigin="anonymous"></script>
     <!-- App (ES module) -->
     <script type="module" src="script.js"></script>
 </body>

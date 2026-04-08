@@ -14,7 +14,11 @@ export function initSocket(token) {
   }
 
   // Socket.IO loaded via CDN script tag
-  _socket = window.io({
+  const socketUrl = (() => {
+    const u = window.SOCKET_URL || '';
+    return u.includes('__BACKEND') ? '' : u;
+  })();
+  _socket = window.io(socketUrl, {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnectionAttempts: 5,
