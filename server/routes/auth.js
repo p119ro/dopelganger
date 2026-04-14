@@ -9,11 +9,11 @@ const { prisma } = require('../services/db');
 const authMiddleware = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { getTier } = require('../services/pointsService');
-const { sendVerificationEmail, emailConfigured } = require('../services/email');
 
 const router = express.Router();
 
 const REFRESH_COOKIE = 'dg_refresh';
+const REFRESH_DAYS   = 30; // keep users logged in for 30 days
 
 const registerSchema = z.object({
   email:    z.string().email(),
@@ -21,9 +21,10 @@ const registerSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+// identifier = email OR username
 const loginSchema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(1),
+  identifier: z.string().min(1),
+  password:   z.string().min(1),
 });
 
 function issueAccessToken(user) {
@@ -39,7 +40,7 @@ function setRefreshCookie(res, token) {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge:   7 * 24 * 60 * 60 * 1000,
+    maxAge:   REFRESH_DAYS * 24 * 60 * 60 * 1000,
     path:     '/api/auth',
   });
 }
@@ -55,21 +56,14 @@ router.post('/register', authLimiter, async (req, res, next) => {
     const data = registerSchema.parse(req.body);
     const passwordHash = await bcrypt.hash(data.password, 12);
 
-    // Generate email verification token
-    const verifyRaw    = crypto.randomBytes(32).toString('hex');
-    const verifyToken  = crypto.createHash('sha256').update(verifyRaw).digest('hex');
-    const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
     let user;
     try {
       user = await prisma.user.create({
         data: {
-          email:              data.email.toLowerCase(),
-          username:           data.username,
+          email:         data.email.toLowerCase(),
+          username:      data.username,
           passwordHash,
-          emailVerifyToken:   verifyToken,
-          emailVerifyExpires: verifyExpires,
-          emailVerified:      !emailConfigured(), // auto-verify when no email service
+          emailVerified: true, // auto-verify — no email gate
         },
       });
     } catch (e) {
@@ -80,20 +74,13 @@ router.post('/register', authLimiter, async (req, res, next) => {
       throw e;
     }
 
-    // Send verification email (non-blocking — don't fail register if email fails)
-    if (emailConfigured()) {
-      sendVerificationEmail(user.email, user.username, verifyRaw).catch(err => {
-        console.error('[email] verification send failed:', err.message);
-      });
-    }
-
     const refreshRaw  = crypto.randomBytes(40).toString('hex');
     const refreshHash = crypto.createHash('sha256').update(refreshRaw).digest('hex');
     await prisma.refreshToken.create({
       data: {
         userId:    user.id,
         token:     refreshHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -102,7 +89,7 @@ router.post('/register', authLimiter, async (req, res, next) => {
     res.status(201).json({
       accessToken,
       user: safeUser(user),
-      emailVerificationSent: emailConfigured(),
+      emailVerificationSent: false,
     });
   } catch (err) {
     next(err);
@@ -113,17 +100,15 @@ router.post('/register', authLimiter, async (req, res, next) => {
 router.post('/login', authLimiter, async (req, res, next) => {
   try {
     const data = loginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
+    const id   = data.identifier.trim();
+
+    // Lookup by email if contains @, otherwise by username (case-insensitive)
+    const user = id.includes('@')
+      ? await prisma.user.findUnique({ where: { email: id.toLowerCase() } })
+      : await prisma.user.findFirst({ where: { username: { equals: id, mode: 'insensitive' } } });
 
     if (!user || !(await bcrypt.compare(data.password, user.passwordHash))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    if (!user.emailVerified) {
-      return res.status(403).json({
-        error: 'Please verify your email before logging in.',
-        code:  'EMAIL_NOT_VERIFIED',
-      });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const refreshRaw  = crypto.randomBytes(40).toString('hex');
@@ -132,7 +117,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       data: {
         userId:    user.id,
         token:     refreshHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -231,7 +216,7 @@ router.post('/refresh', async (req, res, next) => {
         data: {
           userId:    user.id,
           token:     newHash,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000),
         },
       }),
     ]);

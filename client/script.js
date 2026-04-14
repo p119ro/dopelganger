@@ -93,35 +93,39 @@ function createAuthScreen() {
         <p class="auth-tagline">Become the One Who Wins</p>
       </div>
       <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Login</button>
-        <button class="auth-tab" data-tab="register">Register</button>
+        <button class="auth-tab active" data-tab="login">Sign In</button>
+        <button class="auth-tab" data-tab="register">Create Account</button>
       </div>
 
       <!-- Login form -->
       <div id="auth-login" class="auth-form">
-        <input type="email"    id="login-email"    placeholder="Email"    autocomplete="email">
-        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
-        <button class="auth-btn" id="login-btn">Login</button>
+        <div class="auth-field">
+          <input type="text" id="login-identifier" placeholder="Email or username" autocomplete="username">
+        </div>
+        <div class="auth-field">
+          <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+        </div>
+        <button class="auth-btn" id="login-btn">
+          <span class="btn-text">Sign In</span>
+        </button>
         <p id="login-error" class="auth-error"></p>
       </div>
 
       <!-- Register form -->
       <div id="auth-register" class="auth-form hidden">
-        <input type="email"    id="reg-email"     placeholder="Email"                              autocomplete="email">
-        <input type="text"     id="reg-username"  placeholder="Username (3–20 chars, a–z 0–9 _)"  autocomplete="username">
-        <input type="password" id="reg-password"  placeholder="Password (min 8 characters)"       autocomplete="new-password">
-        <button class="auth-btn" id="register-btn">Create Account</button>
+        <div class="auth-field">
+          <input type="email"    id="reg-email"     placeholder="Email address"                    autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <input type="text"     id="reg-username"  placeholder="Username (3–20 chars, letters/numbers/_)" autocomplete="username">
+        </div>
+        <div class="auth-field">
+          <input type="password" id="reg-password"  placeholder="Password (min 8 characters)"     autocomplete="new-password">
+        </div>
+        <button class="auth-btn" id="register-btn">
+          <span class="btn-text">Create Account</span>
+        </button>
         <p id="reg-error" class="auth-error"></p>
-      </div>
-
-      <!-- Email verification notice (shown after register when email is configured) -->
-      <div id="auth-verify" class="verify-notice hidden">
-        <div class="icon">📬</div>
-        <h3>Check your email</h3>
-        <p>We sent a verification link to <strong id="verify-email-addr"></strong>.<br>
-           Click it to activate your account, then log in.</p>
-        <button class="auth-resend" id="resend-btn">Resend verification email</button>
-        <p id="resend-msg" class="auth-hint" style="margin-top:8px"></p>
       </div>
     </div>`;
 
@@ -129,42 +133,43 @@ function createAuthScreen() {
   div.querySelectorAll('.auth-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       div.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
-      div.querySelectorAll('.auth-form, .verify-notice').forEach(f => f.classList.add('hidden'));
+      div.querySelectorAll('.auth-form').forEach(f => f.classList.add('hidden'));
       btn.classList.add('active');
       div.querySelector(`#auth-${btn.dataset.tab}`).classList.remove('hidden');
     });
   });
 
   // Enter-key shortcuts
+  const loginId   = div.querySelector('#login-identifier');
   const loginPass = div.querySelector('#login-password');
+  loginId.addEventListener('keydown',   e => { if (e.key === 'Enter') loginPass.focus(); });
   loginPass.addEventListener('keydown', e => { if (e.key === 'Enter') div.querySelector('#login-btn').click(); });
-  div.querySelector('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') loginPass.focus(); });
+  div.querySelector('#reg-email').addEventListener('keydown',    e => { if (e.key === 'Enter') div.querySelector('#reg-username').focus(); });
+  div.querySelector('#reg-username').addEventListener('keydown', e => { if (e.key === 'Enter') div.querySelector('#reg-password').focus(); });
   div.querySelector('#reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') div.querySelector('#register-btn').click(); });
 
   // ── Login ──
   div.querySelector('#login-btn').addEventListener('click', async () => {
-    const email    = div.querySelector('#login-email').value.trim();
-    const password = div.querySelector('#login-password').value;
-    const errEl    = div.querySelector('#login-error');
+    const identifier = loginId.value.trim();
+    const password   = loginPass.value;
+    const errEl      = div.querySelector('#login-error');
+    const btn        = div.querySelector('#login-btn');
     errEl.textContent = '';
-    const btn = div.querySelector('#login-btn');
+    if (!identifier) { errEl.textContent = 'Enter your email or username'; return; }
     btn.disabled = true;
+    btn.querySelector('.btn-text').textContent = 'Signing in…';
     try {
-      const data = await api.post('/api/auth/login', { email, password });
+      const data = await api.post('/api/auth/login', { identifier, password });
       setAccessToken(data.accessToken);
       storeTokenForSocket(data.accessToken);
       await initApp(data.user);
       hideAuthScreen();
       checkLegacyMigration();
     } catch (e) {
-      if (e.status === 403 && e.message.includes('verify')) {
-        errEl.textContent = '';
-        showVerifyNotice(div, email);
-      } else {
-        errEl.textContent = e.message;
-      }
+      errEl.textContent = e.message;
     } finally {
       btn.disabled = false;
+      btn.querySelector('.btn-text').textContent = 'Sign In';
     }
   });
 
@@ -174,51 +179,30 @@ function createAuthScreen() {
     const username = div.querySelector('#reg-username').value.trim();
     const password = div.querySelector('#reg-password').value;
     const errEl    = div.querySelector('#reg-error');
+    const btn      = div.querySelector('#register-btn');
     errEl.textContent = '';
-    const btn = div.querySelector('#register-btn');
     btn.disabled = true;
+    btn.querySelector('.btn-text').textContent = 'Creating…';
     try {
       const data = await api.post('/api/auth/register', { email, username, password });
-      if (data.emailVerificationSent) {
-        // Show "check your email" instead of logging in immediately
-        showVerifyNotice(div, email);
-      } else {
-        // No email service configured → auto-verified, log straight in
-        setAccessToken(data.accessToken);
-        storeTokenForSocket(data.accessToken);
-        await initApp(data.user);
-        hideAuthScreen();
-        checkLegacyMigration();
-      }
+      // Always auto-verified now — log straight in
+      setAccessToken(data.accessToken);
+      storeTokenForSocket(data.accessToken);
+      await initApp(data.user);
+      hideAuthScreen();
+      showToast(`Welcome, ${data.user.username}! Let's win today.`, 'success');
+      checkLegacyMigration();
     } catch (e) {
       errEl.textContent = e.details
-        ? e.details.map(d => d.message).join(', ')
+        ? e.details.map(d => d.message).join(' · ')
         : e.message;
     } finally {
       btn.disabled = false;
-    }
-  });
-
-  // ── Resend verification ──
-  div.querySelector('#resend-btn').addEventListener('click', async () => {
-    const email = div.querySelector('#verify-email-addr').textContent;
-    const msgEl = div.querySelector('#resend-msg');
-    try {
-      await api.post('/api/auth/resend-verification', { email });
-      msgEl.textContent = 'Email resent! Check your inbox.';
-    } catch {
-      msgEl.textContent = 'Could not resend. Try again later.';
+      btn.querySelector('.btn-text').textContent = 'Create Account';
     }
   });
 
   return div;
-}
-
-function showVerifyNotice(authDiv, email) {
-  authDiv.querySelectorAll('.auth-form, .auth-tabs').forEach(el => el.classList.add('hidden'));
-  const notice = authDiv.querySelector('#auth-verify');
-  authDiv.querySelector('#verify-email-addr').textContent = email;
-  notice.classList.remove('hidden');
 }
 
 // ─── APP INIT ─────────────────────────────────────────────────────────────────
@@ -316,10 +300,12 @@ function renderAll() {
 function renderHeader() {
   const u = state.user;
   if (!u) return;
-  const tierEl = document.getElementById('currentTier');
-  const scoreEl = document.getElementById('dailyScore');
-  if (tierEl) tierEl.textContent = u.username || u.tier;
-  if (scoreEl) scoreEl.textContent = `${Math.round(state.dailyLog?.pointsEarned || 0)} pts`;
+  const tierEl    = document.getElementById('currentTier');
+  const scoreEl   = document.getElementById('dailyScore');
+  const totalEl   = document.getElementById('totalScore');
+  if (tierEl)  tierEl.textContent  = u.username || u.tier;
+  if (scoreEl) scoreEl.textContent = `${Math.round(state.dailyLog?.pointsEarned || 0)} today`;
+  if (totalEl) totalEl.textContent = `${Math.round(u.totalPowerPoints).toLocaleString()} total pts`;
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -329,16 +315,28 @@ function renderDashboard() {
 
   // Stats
   setText('currentStreak', u.currentStreak);
-  setText('monthlyPoints', Math.round(u.monthlyPoints));
   setText('tierProgress', calcTierProgress(u.totalPowerPoints));
 
-  // Avatar vs Doppelganger
-  const total = u.totalPowerPoints;
+  // Avatar vs Doppelganger — Balance of Power
+  const total    = u.totalPowerPoints;
   const dopTotal = u.doppelgangerPowerPoints;
   const combined = total + dopTotal || 1;
-  const userPct = Math.round((total / combined) * 100);
+  const userPct  = Math.round((total / combined) * 100);
   const el = document.getElementById('strengthMeter');
   if (el) el.style.width = `${userPct}%`;
+
+  // Power point labels beneath the bar
+  const userPtsLabel = document.getElementById('powerLabelUser');
+  const dopPtsLabel  = document.getElementById('powerLabelDop');
+  if (userPtsLabel) userPtsLabel.textContent = `You: ${Math.round(total).toLocaleString()} pts`;
+  if (dopPtsLabel)  dopPtsLabel.textContent  = `Shadow: ${Math.round(dopTotal).toLocaleString()} pts`;
+
+  // Tooltip on the bar
+  const barEl = document.querySelector('.meter-bar');
+  if (barEl) barEl.title = `You ${userPct}% vs Shadow ${100 - userPct}%`;
+
+  // Monthly total in the "Monthly Points" stat card
+  setText('monthlyPoints', Math.round(u.monthlyPoints).toLocaleString());
 
   setText('avatarLevel', `Level ${u.avatarLevel}`);
   setText('avatarExp', `${Math.round(total)} / ${getNextTierThreshold(u.totalPowerPoints)} XP`);
@@ -372,13 +370,16 @@ function renderHabitQuickList() {
 }
 
 // ─── HABITS ───────────────────────────────────────────────────────────────────
-function renderHabits() {
+function renderHabits(triggerConfetti = false) {
   const completed = state.dailyLog?.completedHabits || [];
-  const penalties = state.dailyLog?.penaltiesApplied || 0;
 
   Object.keys(HABITS).forEach(id => {
-    const cb = document.getElementById(`${id}-checkbox`);
-    if (cb) cb.checked = completed.includes(id);
+    const cb   = document.getElementById(`${id}-checkbox`);
+    const card = document.querySelector(`[data-habit="${id}"]`);
+    const done = completed.includes(id);
+
+    if (cb)   cb.checked = done;
+    if (card) card.classList.toggle('completed', done);
 
     const streakEl = document.getElementById(`${id}-streak`);
     if (streakEl) {
@@ -386,13 +387,19 @@ function renderHabits() {
       streakEl.textContent = s?.currentStreak || 0;
     }
 
-    // Streak progress bar
+    // Streak progress bar (towards 66-day goal)
     const prog = document.getElementById(`${id}-progress`);
     if (prog) {
       const streak = state.streaks.find(s => s.habitId === id)?.currentStreak || 0;
       prog.style.width = `${Math.min((streak / 66) * 100, 100)}%`;
     }
   });
+
+  // Fire confetti when all habits done (only on toggle, not initial render)
+  if (triggerConfetti && completed.length === Object.keys(HABITS).length) {
+    launchConfetti();
+    showToast('🎉 Perfect day! All habits complete!', 'success');
+  }
 
   // Summary
   const pts = Math.round(state.dailyLog?.pointsEarned || 0);
@@ -617,6 +624,65 @@ function drawPointsChart(logs) {
   });
 }
 
+// ─── CONFETTI ─────────────────────────────────────────────────────────────────
+function launchConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999';
+  document.body.appendChild(canvas);
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#00d4ff', '#00ff88', '#ffd700', '#9945ff', '#ff6b6b', '#fff'];
+  const pieces = Array.from({ length: 180 }, () => ({
+    x:     Math.random() * canvas.width,
+    y:     -Math.random() * canvas.height * 0.5,
+    size:  Math.random() * 9 + 4,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    vx:    (Math.random() - 0.5) * 5,
+    vy:    Math.random() * 4 + 2,
+    angle: Math.random() * Math.PI * 2,
+    spin:  (Math.random() - 0.5) * 0.25,
+    shape: Math.random() > 0.5 ? 'rect' : 'circle',
+  }));
+
+  let frameId;
+  const start = performance.now();
+  const DURATION = 4500;
+
+  function draw(now) {
+    const elapsed = now - start;
+    const fade = Math.max(0, 1 - (elapsed - DURATION * 0.6) / (DURATION * 0.4));
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = fade;
+    pieces.forEach(p => {
+      p.x     += p.vx;
+      p.y     += p.vy;
+      p.angle += p.spin;
+      p.vy    += 0.08; // gentle gravity
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      }
+      ctx.restore();
+    });
+    if (elapsed < DURATION) {
+      frameId = requestAnimationFrame(draw);
+    } else {
+      canvas.remove();
+    }
+  }
+  frameId = requestAnimationFrame(draw);
+  setTimeout(() => { cancelAnimationFrame(frameId); canvas.remove(); }, DURATION + 200);
+}
+
 // ─── EVENT LISTENERS ──────────────────────────────────────────────────────────
 function setupEventListeners() {
   // Habit checkboxes
@@ -733,12 +799,15 @@ async function handleHabitToggle(e) {
     });
     state.dailyLog = data.log;
     state.user = { ...state.user, ...data.user };
-    renderHabits();
+    renderHabits(completed); // pass true when checking, triggers confetti check
     renderHeader();
     renderDashboard();
 
     if (completed) {
-      showToast(`${HABITS[habitId].icon} ${HABITS[habitId].name} done! +${HABITS[habitId].points} pts`, 'success');
+      const allDone = data.log.completedHabits.length === Object.keys(HABITS).length;
+      if (!allDone) {
+        showToast(`${HABITS[habitId].icon} ${HABITS[habitId].name} done! +${HABITS[habitId].points} pts`, 'success');
+      }
     }
   } catch (err) {
     // Revert
