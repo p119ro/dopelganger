@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Doppelganger - Become the One Who Wins</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon_io\favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="favicon_io\favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
 </head>
 <body>
     <!-- Header Navigation -->
@@ -21,9 +20,7 @@
             <nav class="nav">
                 <button class="nav-btn active" data-section="dashboard">Dashboard</button>
                 <button class="nav-btn" data-section="habits">Habits</button>
-                <button class="nav-btn" data-section="team">Team</button>
                 <button class="nav-btn" data-section="progress">Progress</button>
-                <button class="nav-btn" data-section="battle">Battle</button>
             </nav>
             <div class="user-info">
                 <span class="current-tier" id="currentTier">Bronze</span>
@@ -34,11 +31,11 @@
 
     <!-- Main Content Container -->
     <main class="main-container">
-        
+
         <!-- Dashboard Section -->
         <section class="section active" id="dashboard">
             <div class="dashboard-grid">
-                
+
                 <!-- Avatar vs Doppelganger Battle -->
                 <div class="battle-arena">
                     <div class="arena-header">
@@ -54,7 +51,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="combatants">
                         <div class="avatar-container">
                             <div class="avatar" id="playerAvatar">
@@ -63,14 +60,14 @@
                                 <div class="avatar-aura" id="avatarAura"></div>
                             </div>
                             <div class="avatar-info">
-                                <h3>Your Avatar</h3>
+                                <h3>You</h3>
                                 <div class="avatar-level" id="avatarLevel">Level 1</div>
                                 <div class="avatar-exp" id="avatarExp">0 / 100 XP</div>
                             </div>
                         </div>
-                        
+
                         <div class="vs-indicator">VS</div>
-                        
+
                         <div class="doppelganger-container">
                             <div class="doppelganger" id="doppelganger">
                                 <div class="doppelganger-base"></div>
@@ -103,10 +100,10 @@
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-icon">👥</div>
+                        <div class="stat-icon">⭐</div>
                         <div class="stat-info">
-                            <div class="stat-value" id="teamRank">#--</div>
-                            <div class="stat-label">Team Rank</div>
+                            <div class="stat-value" id="perfectDays">0</div>
+                            <div class="stat-label">Perfect Days</div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -373,88 +370,9 @@
                             <span class="summary-value" id="pointsEarned">0</span>
                         </div>
                         <div class="summary-item">
-                            <span class="summary-label">Team Bonus:</span>
-                            <span class="summary-value" id="teamBonus">+0%</span>
-                        </div>
-                        <div class="summary-item">
                             <span class="summary-label">Final Score:</span>
                             <span class="summary-value" id="finalScore">0</span>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Team Section -->
-        <section class="section" id="team">
-            <div class="team-header">
-                <h2>Your Squad</h2>
-                <button class="create-team-btn" id="createTeamBtn">Create Team</button>
-                <button class="join-team-btn" id="joinTeamBtn">Join Team</button>
-            </div>
-
-            <div class="team-content">
-                <div class="team-stats">
-                    <div class="collective-meter">
-                        <h3>Collective Strength Meter</h3>
-                        <div class="meter-container">
-                            <div class="collective-bar">
-                                <div class="collective-fill" id="collectiveFill"></div>
-                            </div>
-                            <div class="meter-score">
-                                <span id="teamScore">0</span> / 500 points
-                            </div>
-                        </div>
-                        <div class="team-grade" id="teamGrade">🔴 Poor</div>
-                        <div class="team-multiplier">Bonus: <span id="teamMultiplier">×0.90</span></div>
-                    </div>
-                </div>
-
-                <div class="team-members">
-                    <h3>Squad Members</h3>
-                    <div class="members-list" id="membersList">
-                        <div class="member-slot empty" id="member-0">
-                            <div class="member-avatar placeholder"></div>
-                            <div class="member-info">
-                                <div class="member-name">Empty Slot</div>
-                                <div class="member-score">--</div>
-                            </div>
-                        </div>
-                        <div class="member-slot empty" id="member-1">
-                            <div class="member-avatar placeholder"></div>
-                            <div class="member-info">
-                                <div class="member-name">Empty Slot</div>
-                                <div class="member-score">--</div>
-                            </div>
-                        </div>
-                        <div class="member-slot empty" id="member-2">
-                            <div class="member-avatar placeholder"></div>
-                            <div class="member-info">
-                                <div class="member-name">Empty Slot</div>
-                                <div class="member-score">--</div>
-                            </div>
-                        </div>
-                        <div class="member-slot empty" id="member-3">
-                            <div class="member-avatar placeholder"></div>
-                            <div class="member-info">
-                                <div class="member-name">Empty Slot</div>
-                                <div class="member-score">--</div>
-                            </div>
-                        </div>
-                        <div class="member-slot empty" id="member-4">
-                            <div class="member-avatar placeholder"></div>
-                            <div class="member-info">
-                                <div class="member-name">Empty Slot</div>
-                                <div class="member-score">--</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="team-leaderboard">
-                    <h3>Team Leaderboard</h3>
-                    <div class="leaderboard-list" id="teamLeaderboard">
-                        <!-- Populated by JavaScript -->
                     </div>
                 </div>
             </div>
@@ -464,12 +382,6 @@
         <section class="section" id="progress">
             <div class="progress-header">
                 <h2>Progress Tracking</h2>
-                <div class="time-filters">
-                    <button class="filter-btn active" data-period="daily">Daily</button>
-                    <button class="filter-btn" data-period="weekly">Weekly</button>
-                    <button class="filter-btn" data-period="monthly">Monthly</button>
-                    <button class="filter-btn" data-period="yearly">Yearly</button>
-                </div>
             </div>
 
             <div class="progress-content">
@@ -534,7 +446,7 @@
                             <canvas width="400" height="200"></canvas>
                         </div>
                     </div>
-                    
+
                     <div class="chart-card">
                         <h4>Habit Completion Rate</h4>
                         <div class="chart" id="habitsChart">
@@ -561,127 +473,16 @@
                             <div class="badge-name">Streak Master</div>
                             <div class="badge-desc">Maintain a 66-day streak</div>
                         </div>
-                        <div class="badge locked" data-badge="team-player">
-                            <div class="badge-icon">👥</div>
-                            <div class="badge-name">Team Player</div>
-                            <div class="badge-desc">Join your first team</div>
-                        </div>
                         <div class="badge locked" data-badge="top-performer">
                             <div class="badge-icon">🏅</div>
                             <div class="badge-name">Top 10%</div>
-                            <div class="badge-desc">Rank in top 10% for a month</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Battle Section -->
-        <section class="section" id="battle">
-            <div class="battle-header">
-                <h2>Battle Arena</h2>
-                <div class="battle-timer">
-                    <span>Next Battle Event:</span>
-                    <span class="timer" id="battleTimer">--:--:--</span>
-                </div>
-            </div>
-
-            <div class="battle-content">
-                <div class="current-battle">
-                    <h3>Weekly Doppelganger Duel</h3>
-                    <div class="battle-arena-main">
-                        <div class="battle-participant">
-                            <div class="participant-avatar" id="battleAvatar">
-                                <div class="battle-health" id="avatarHealth">100%</div>
-                            </div>
-                            <div class="participant-name">You</div>
-                            <div class="participant-power" id="avatarPower">Power: 150</div>
-                        </div>
-                        
-                        <div class="battle-vs">
-                            <div class="battle-status" id="battleStatus">Preparing for Battle</div>
-                            <div class="battle-round" id="battleRound">Round 1/7</div>
-                        </div>
-                        
-                        <div class="battle-participant">
-                            <div class="participant-avatar doppelganger" id="battleDoppelganger">
-                                <div class="battle-health" id="doppelgangerHealth">100%</div>
-                            </div>
-                            <div class="participant-name">Your Shadow</div>
-                            <div class="participant-power" id="shadowPower">Power: 120</div>
-                        </div>
-                    </div>
-                    
-                    <div class="battle-log" id="battleLog">
-                        <div class="log-entry">Battle will commence when the week begins...</div>
-                    </div>
-                </div>
-
-                <div class="battle-history">
-                    <h3>Battle History</h3>
-                    <div class="history-list" id="battleHistory">
-                        <div class="history-item">
-                            <div class="history-date">No battles yet</div>
-                            <div class="history-result">--</div>
-                            <div class="history-score">-- vs --</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="upcoming-events">
-                    <h3>Upcoming Events</h3>
-                    <div class="events-list">
-                        <div class="event-item">
-                            <div class="event-icon">⚔️</div>
-                            <div class="event-info">
-                                <div class="event-name">Doppelganger Duel</div>
-                                <div class="event-time">Every Monday</div>
-                            </div>
-                        </div>
-                        <div class="event-item">
-                            <div class="event-icon">🐉</div>
-                            <div class="event-info">
-                                <div class="event-name">Boss Raid</div>
-                                <div class="event-time">Monthly Challenge</div>
-                            </div>
-                        </div>
-                        <div class="event-item">
-                            <div class="event-icon">🏆</div>
-                            <div class="event-info">
-                                <div class="event-name">Team Championship</div>
-                                <div class="event-time">Quarterly</div>
-                            </div>
+                            <div class="badge-desc">Earn 5,000+ points in a month</div>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
     </main>
-
-    <!-- Modals -->
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal" id="teamModal">
-            <div class="modal-header">
-                <h3>Create/Join Team</h3>
-                <button class="modal-close" id="modalClose">×</button>
-            </div>
-            <div class="modal-content">
-                <div class="modal-tabs">
-                    <button class="tab-btn active" data-tab="create">Create Team</button>
-                    <button class="tab-btn" data-tab="join">Join Team</button>
-                </div>
-                <div class="tab-content active" id="createTab">
-                    <input type="text" placeholder="Team Name" id="teamName">
-                    <textarea placeholder="Team Description" id="teamDescription"></textarea>
-                    <button class="action-btn" id="createTeamAction">Create Team</button>
-                </div>
-                <div class="tab-content" id="joinTab">
-                    <input type="text" placeholder="Team Code" id="teamCode">
-                    <button class="action-btn" id="joinTeamAction">Join Team</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Footer -->
     <footer class="footer">

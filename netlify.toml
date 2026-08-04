@@ -1,25 +1,3 @@
-# Netlify config for Doppelganger
-#
-# SETUP:
-# 1. Deploy the Node.js backend on Railway (railway.app) — just connect your GitHub repo.
-#    Railway will use the Dockerfile automatically.
-# 2. Copy all env vars from .env into Railway's environment settings.
-#    Set APP_URL = https://your-app.up.railway.app
-#    Set CORS_ORIGIN = https://dopelganger.netlify.app
-# 3. In Netlify → Site Settings → Environment Variables, add:
-#    BACKEND_URL = https://your-app.up.railway.app  (no trailing slash)
-# 4. Trigger a new Netlify deploy (or push a commit) — done.
-
+# Static site — no build step, no backend.
 [build]
-  publish = "client"
-  # Injects the backend URL into index.html at build time
-  command = "cp -r favicon_io client/favicon_io && sed -i \"s|__BACKEND_URL__|${BACKEND_URL}|g\" client/index.html"
-
-[build.environment]
-  NODE_VERSION = "20"
-
-# ── SPA fallback ──────────────────────────────────────────────────────────────
-[[redirects]]
-  from   = "/*"
-  to     = "/index.html"
-  status = 200
+  publish = "."
