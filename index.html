@@ -3,14 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="description" content="Daily habit tracker: feed yourself or feed your shadow.">
     <title>Doppelganger - Become the One Who Wins</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/styles.css">
     <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
+    <link rel="manifest" href="favicon_io/site.webmanifest">
+    <script src="js/engine.js" defer></script>
+    <script src="js/charts.js" defer></script>
+    <script src="js/app.js" defer></script>
 </head>
 <body>
-    <!-- Header Navigation -->
     <header class="header">
         <div class="header-container">
             <div class="logo">
@@ -18,481 +23,182 @@
                 <span class="tagline">Become the One Who Wins</span>
             </div>
             <nav class="nav">
-                <button class="nav-btn active" data-section="dashboard">Dashboard</button>
-                <button class="nav-btn" data-section="habits">Habits</button>
-                <button class="nav-btn" data-section="progress">Progress</button>
+                <a class="nav-btn active" href="#dashboard" data-section="dashboard">Dashboard</a>
+                <a class="nav-btn" href="#habits" data-section="habits">Habits</a>
+                <a class="nav-btn" href="#progress" data-section="progress">Progress</a>
             </nav>
             <div class="user-info">
-                <span class="current-tier" id="currentTier">Bronze</span>
-                <span class="daily-score" id="dailyScore">0 pts</span>
+                <span class="current-tier bronze" id="currentTier">Bronze</span>
+                <span class="total-points" id="totalPoints">0 pts</span>
             </div>
         </div>
     </header>
 
-    <!-- Main Content Container -->
     <main class="main-container">
 
-        <!-- Dashboard Section -->
+        <!-- Dashboard -->
         <section class="section active" id="dashboard">
             <div class="dashboard-grid">
-
-                <!-- Avatar vs Doppelganger Battle -->
-                <div class="battle-arena">
-                    <div class="arena-header">
-                        <h2>Your Inner Battle</h2>
-                        <div class="strength-meter">
-                            <div class="meter-label">Balance of Power</div>
-                            <div class="meter-bar">
-                                <div class="meter-fill" id="strengthMeter"></div>
-                            </div>
-                            <div class="meter-labels">
-                                <span>Doppelganger</span>
-                                <span>You</span>
-                            </div>
+                <div class="card battle-arena">
+                    <h2 class="gradient-text">Your Inner Battle</h2>
+                    <div class="strength-meter">
+                        <div class="meter-label">Balance of Power</div>
+                        <div class="meter-bar"><div class="meter-fill" id="strengthMeter"></div></div>
+                        <div class="meter-labels">
+                            <span id="meterYou">You: 0 (50%)</span>
+                            <span id="meterShadow">Shadow: 0 (50%)</span>
                         </div>
                     </div>
 
                     <div class="combatants">
-                        <div class="avatar-container">
-                            <div class="avatar" id="playerAvatar">
+                        <div class="combatant">
+                            <div class="avatar">
                                 <div class="avatar-base"></div>
                                 <div class="avatar-glow" id="avatarGlow"></div>
                                 <div class="avatar-aura" id="avatarAura"></div>
                             </div>
-                            <div class="avatar-info">
-                                <h3>You</h3>
-                                <div class="avatar-level" id="avatarLevel">Level 1</div>
-                                <div class="avatar-exp" id="avatarExp">0 / 100 XP</div>
-                            </div>
+                            <h3>You</h3>
+                            <div class="combatant-level" id="avatarLevel">Level 1</div>
+                            <div class="combatant-sub" id="avatarExp">0 / 100 XP</div>
                         </div>
 
                         <div class="vs-indicator">VS</div>
 
-                        <div class="doppelganger-container">
-                            <div class="doppelganger" id="doppelganger">
+                        <div class="combatant">
+                            <div class="doppelganger">
                                 <div class="doppelganger-base"></div>
                                 <div class="doppelganger-shadow" id="doppelgangerShadow"></div>
                                 <div class="doppelganger-corruption" id="doppelgangerCorruption"></div>
                             </div>
-                            <div class="doppelganger-info">
-                                <h3>Your Shadow</h3>
-                                <div class="doppelganger-level" id="doppelgangerLevel">Level 1</div>
-                                <div class="doppelganger-power" id="doppelgangerPower">0% Influence</div>
-                            </div>
+                            <h3>Your Shadow</h3>
+                            <div class="combatant-level" id="doppelgangerLevel">Level 1</div>
+                            <div class="combatant-sub" id="doppelgangerPower">50% Influence</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Quick Stats -->
                 <div class="quick-stats">
-                    <div class="stat-card">
+                    <div class="card stat-card">
                         <div class="stat-icon">🔥</div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="currentStreak">0</div>
-                            <div class="stat-label">Current Streak</div>
-                        </div>
+                        <div class="stat-value" id="currentStreak">0</div>
+                        <div class="stat-label">Day Streak</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="card stat-card">
                         <div class="stat-icon">📈</div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="monthlyPoints">0</div>
-                            <div class="stat-label">Monthly Points</div>
-                        </div>
+                        <div class="stat-value" id="monthlyPoints">0</div>
+                        <div class="stat-label">Points (30 days)</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="card stat-card">
                         <div class="stat-icon">⭐</div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="perfectDays">0</div>
-                            <div class="stat-label">Perfect Days</div>
-                        </div>
+                        <div class="stat-value" id="perfectDays">0</div>
+                        <div class="stat-label">Perfect Days</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="card stat-card">
                         <div class="stat-icon">💎</div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="tierProgress">0%</div>
-                            <div class="stat-label">Tier Progress</div>
-                        </div>
+                        <div class="stat-value" id="tierProgress">0%</div>
+                        <div class="stat-label" id="tierProgressLabel">To Silver</div>
                     </div>
                 </div>
 
-                <!-- Today's Habits Quick View -->
-                <div class="today-habits">
-                    <h3>Today's Mission</h3>
-                    <div class="habit-quick-list" id="habitQuickList">
-                        <!-- Populated by JavaScript -->
-                    </div>
-                    <div class="daily-completion">
+                <div class="card today-habits">
+                    <div class="today-header">
+                        <h3>Today's Mission</h3>
                         <div class="completion-circle" id="dailyCompletion">
-                            <span class="completion-percentage">0%</span>
+                            <span class="completion-percentage" id="completionPercentage">0%</span>
                         </div>
                     </div>
+                    <div class="habit-quick-list" id="habitQuickList"></div>
                 </div>
             </div>
         </section>
 
-        <!-- Habits Tracking Section -->
+        <!-- Habits -->
         <section class="section" id="habits">
             <div class="habits-header">
-                <h2>Daily Habits</h2>
-                <div class="date-selector">
-                    <button class="date-btn" id="prevDay">◀</button>
+                <h2 class="gradient-text">Daily Habits</h2>
+                <div class="date-nav">
+                    <button class="date-btn" id="prevDay" aria-label="Previous day">◀</button>
                     <span class="current-date" id="currentDate">Today</span>
-                    <button class="date-btn" id="nextDay">▶</button>
+                    <button class="date-btn" id="nextDay" aria-label="Next day">▶</button>
+                    <button class="today-btn" id="todayBtn">Today</button>
                 </div>
             </div>
+            <p class="date-note" id="dateNote"></p>
 
-            <div class="habits-grid">
-                <div class="habit-card" data-habit="reading">
-                    <div class="habit-header">
-                        <div class="habit-icon">📚</div>
-                        <div class="habit-info">
-                            <h3>Read 30 minutes</h3>
-                            <span class="habit-points">+10 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="reading-checkbox">
-                            <label for="reading-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="reading-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="reading-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="habits-grid" id="habitsGrid"></div>
 
-                <div class="habit-card" data-habit="screentime">
-                    <div class="habit-header">
-                        <div class="habit-icon">📵</div>
-                        <div class="habit-info">
-                            <h3>Screen time &lt;2 hours</h3>
-                            <span class="habit-points">+15 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="screentime-checkbox">
-                            <label for="screentime-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="screentime-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="screentime-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="gym">
-                    <div class="habit-header">
-                        <div class="habit-icon">💪</div>
-                        <div class="habit-info">
-                            <h3>Gym session</h3>
-                            <span class="habit-points">+15 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="gym-checkbox">
-                            <label for="gym-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="gym-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="gym-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="sleep">
-                    <div class="habit-header">
-                        <div class="habit-icon">😴</div>
-                        <div class="habit-info">
-                            <h3>Sleep 7-10 hours</h3>
-                            <span class="habit-points">+10 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="sleep-checkbox">
-                            <label for="sleep-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="sleep-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="sleep-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="deepwork">
-                    <div class="habit-header">
-                        <div class="habit-icon">🎯</div>
-                        <div class="habit-info">
-                            <h3>90 min deep work</h3>
-                            <span class="habit-points">+15 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="deepwork-checkbox">
-                            <label for="deepwork-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="deepwork-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="deepwork-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="cardio">
-                    <div class="habit-header">
-                        <div class="habit-icon">🏃‍♂️</div>
-                        <div class="habit-info">
-                            <h3>20 min cardio</h3>
-                            <span class="habit-points">+10 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="cardio-checkbox">
-                            <label for="cardio-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="cardio-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="cardio-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="meditation">
-                    <div class="habit-header">
-                        <div class="habit-icon">🧘</div>
-                        <div class="habit-info">
-                            <h3>Meditate 10 min</h3>
-                            <span class="habit-points">+5 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="meditation-checkbox">
-                            <label for="meditation-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="meditation-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="meditation-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="coldshower">
-                    <div class="habit-header">
-                        <div class="habit-icon">❄️</div>
-                        <div class="habit-info">
-                            <h3>Cold shower</h3>
-                            <span class="habit-points">+5 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="coldshower-checkbox">
-                            <label for="coldshower-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="coldshower-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="coldshower-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="habit-card" data-habit="nutrition">
-                    <div class="habit-header">
-                        <div class="habit-icon">🍽️</div>
-                        <div class="habit-info">
-                            <h3>No sugar/processed food</h3>
-                            <span class="habit-points">+10 points</span>
-                        </div>
-                        <div class="habit-status">
-                            <input type="checkbox" class="habit-checkbox" id="nutrition-checkbox">
-                            <label for="nutrition-checkbox" class="habit-toggle"></label>
-                        </div>
-                    </div>
-                    <div class="habit-details">
-                        <div class="habit-streak">Streak: <span id="nutrition-streak">0</span> days</div>
-                        <div class="habit-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="nutrition-progress"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="penalty-system">
-                <div class="penalty-card">
+            <div class="habits-footer">
+                <div class="card penalty-card">
                     <div class="penalty-header">
                         <div class="penalty-icon">⚠️</div>
-                        <div class="penalty-info">
+                        <div>
                             <h3>Screen Time Penalty</h3>
-                            <p>Press once for every hour over 2h limit</p>
+                            <p>One per hour over the 2h limit. Each costs you 10 pts and gives your Shadow 10.</p>
                         </div>
                     </div>
-                    <button class="penalty-button" id="screentime-penalty-btn">
-                        <span class="penalty-text">Apply Penalty</span>
-                        <span class="penalty-points">-10 pts</span>
-                    </button>
+                    <div class="penalty-controls">
+                        <button class="penalty-step" id="penaltyRemove" aria-label="Remove one penalty">−</button>
+                        <div class="penalty-count"><span id="penaltyCount">0</span> hours over</div>
+                        <button class="penalty-step add" id="penaltyAdd" aria-label="Add one penalty">+</button>
+                    </div>
                 </div>
-            </div>
 
-            <div class="daily-summary">
-                <div class="summary-card">
-                    <h3>Daily Summary</h3>
+                <div class="card summary-card">
+                    <h3 id="summaryTitle">Today's Summary</h3>
                     <div class="summary-stats">
-                        <div class="summary-item">
-                            <span class="summary-label">Completed:</span>
-                            <span class="summary-value" id="completedCount">0/9</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">Points Earned:</span>
-                            <span class="summary-value" id="pointsEarned">0</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">Final Score:</span>
-                            <span class="summary-value" id="finalScore">0</span>
-                        </div>
+                        <div class="summary-item"><span class="summary-label">Completed</span><span class="summary-value" id="completedCount">0/9</span></div>
+                        <div class="summary-item"><span class="summary-label">Points earned</span><span class="summary-value" id="pointsEarned">0</span></div>
+                        <div class="summary-item"><span class="summary-label">Screen time penalty</span><span class="summary-value" id="penaltyPoints">0</span></div>
+                        <div class="summary-item"><span class="summary-label" id="punishmentLabel">Missed-habit punishment</span><span class="summary-value" id="punishmentPoints">0</span></div>
+                        <div class="summary-item"><span class="summary-label">Shadow gains</span><span class="summary-value negative" id="shadowGain">0</span></div>
+                        <div class="summary-item total"><span class="summary-label">Net for you</span><span class="summary-value" id="finalScore">0</span></div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Progress Section -->
+        <!-- Progress -->
         <section class="section" id="progress">
-            <div class="progress-header">
-                <h2>Progress Tracking</h2>
-            </div>
+            <h2 class="gradient-text section-title">Progress</h2>
 
             <div class="progress-content">
-                <div class="tier-progression">
+                <div class="card tier-progression">
                     <h3>Tier Progression</h3>
-                    <div class="tier-ladder">
-                        <div class="tier goggins" data-tier="goggins">
-                            <div class="tier-icon">🔥</div>
-                            <div class="tier-info">
-                                <div class="tier-name">Goggins</div>
-                                <div class="tier-range">15,000+ pts</div>
-                            </div>
-                            <div class="tier-status" id="goggins-status"></div>
-                        </div>
-                        <div class="tier diamond" data-tier="diamond">
-                            <div class="tier-icon">💎</div>
-                            <div class="tier-info">
-                                <div class="tier-name">Diamond</div>
-                                <div class="tier-range">7,500 - 15,000 pts</div>
-                            </div>
-                            <div class="tier-status" id="diamond-status"></div>
-                        </div>
-                        <div class="tier platinum" data-tier="platinum">
-                            <div class="tier-icon">🏆</div>
-                            <div class="tier-info">
-                                <div class="tier-name">Platinum</div>
-                                <div class="tier-range">5,000 - 7,500 pts</div>
-                            </div>
-                            <div class="tier-status" id="platinum-status"></div>
-                        </div>
-                        <div class="tier gold" data-tier="gold">
-                            <div class="tier-icon">🥇</div>
-                            <div class="tier-info">
-                                <div class="tier-name">Gold</div>
-                                <div class="tier-range">2,500 - 5,000 pts</div>
-                            </div>
-                            <div class="tier-status" id="gold-status"></div>
-                        </div>
-                        <div class="tier silver" data-tier="silver">
-                            <div class="tier-icon">🥈</div>
-                            <div class="tier-info">
-                                <div class="tier-name">Silver</div>
-                                <div class="tier-range">1,000 - 2,500 pts</div>
-                            </div>
-                            <div class="tier-status" id="silver-status"></div>
-                        </div>
-                        <div class="tier bronze active" data-tier="bronze">
-                            <div class="tier-icon">🥉</div>
-                            <div class="tier-info">
-                                <div class="tier-name">Bronze</div>
-                                <div class="tier-range">0 - 1,000 pts</div>
-                            </div>
-                            <div class="tier-status" id="bronze-status">Current</div>
-                        </div>
-                    </div>
+                    <div class="tier-ladder" id="tierLadder"></div>
                 </div>
 
                 <div class="charts-container">
-                    <div class="chart-card">
-                        <h4>Points Over Time</h4>
-                        <div class="chart" id="pointsChart">
-                            <canvas width="400" height="200"></canvas>
+                    <div class="card chart-card">
+                        <div class="chart-head">
+                            <h4>Power over time</h4>
+                            <div class="chart-legend">
+                                <span><i class="legend-key you"></i>You</span>
+                                <span><i class="legend-key shadow"></i>Shadow</span>
+                            </div>
                         </div>
+                        <p class="chart-sub">Total points at the end of each day, last 30 days</p>
+                        <div class="chart" id="powerChart"></div>
                     </div>
 
-                    <div class="chart-card">
-                        <h4>Habit Completion Rate</h4>
-                        <div class="chart" id="habitsChart">
-                            <canvas width="400" height="200"></canvas>
+                    <div class="card chart-card">
+                        <div class="chart-head">
+                            <h4>Habits completed per day</h4>
                         </div>
+                        <p class="chart-sub">Last 30 days · today is faded until it's over</p>
+                        <div class="chart" id="habitsChart"></div>
                     </div>
                 </div>
 
-                <div class="achievements">
-                    <h3>Achievements & Badges</h3>
-                    <div class="badges-grid" id="badgesGrid">
-                        <div class="badge locked" data-badge="first-week">
-                            <div class="badge-icon">🎯</div>
-                            <div class="badge-name">First Week</div>
-                            <div class="badge-desc">Complete 7 days in a row</div>
-                        </div>
-                        <div class="badge locked" data-badge="perfect-day">
-                            <div class="badge-icon">⭐</div>
-                            <div class="badge-name">Perfect Day</div>
-                            <div class="badge-desc">Complete all 9 habits in one day</div>
-                        </div>
-                        <div class="badge locked" data-badge="streak-master">
-                            <div class="badge-icon">🔥</div>
-                            <div class="badge-name">Streak Master</div>
-                            <div class="badge-desc">Maintain a 66-day streak</div>
-                        </div>
-                        <div class="badge locked" data-badge="top-performer">
-                            <div class="badge-icon">🏅</div>
-                            <div class="badge-name">Top 10%</div>
-                            <div class="badge-desc">Earn 5,000+ points in a month</div>
-                        </div>
-                    </div>
+                <div class="card achievements">
+                    <h3>Achievements</h3>
+                    <div class="badges-grid" id="badgesGrid"></div>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Footer -->
     <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-quote">
-                "This isn't just a habit tracker. This is a war. Between you and the version of you that never changes."
-            </div>
-        </div>
+        <p class="footer-quote">"This isn't just a habit tracker. This is a war. Between you and the version of you that never changes."</p>
     </footer>
-
-    <script src="script.js"></script>
 </body>
 </html>
