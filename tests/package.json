@@ -1,0 +1,12 @@
+{
+  "name": "doppelganger-tests",
+  "private": true,
+  "scripts": {
+    "test": "npm run unit && npm run e2e",
+    "unit": "node --test unit/",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

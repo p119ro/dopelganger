@@ -17,7 +17,9 @@ Serve the folder with any static server (e.g. `python -m http.server`) and open 
 - **Every day counts.** From the first day you log anything, each day after it is scored whether or not you open the app. Missing 10 days costs you 10 days.
 - **Perfect days** (all 9 habits) give a +5 bonus.
 - **Screen time penalty:** −10 for you and +10 for your Shadow per hour over the limit, logged per day.
-- **Past-day editing:** use the arrows (or ← / → keys) on the Habits page. Your totals are recalculated from that day forward.
+- **Past-day editing:** use the arrows (← / → keys, `t` for today) or click the date to open a calendar. Your totals are recalculated from that day forward.
+- **Progress page:** a year heatmap of every day (click one to open it), trend charts with 7D/30D/90D/1Y/All ranges (click a point or bar to open that day), a per-habit breakdown, and 23 achievements with progress bars.
+- **Backups:** export/import your data as a JSON file from the footer.
 
 ## Code
 
@@ -27,6 +29,9 @@ Serve the folder with any static server (e.g. `python -m http.server`) and open 
 | `js/charts.js` | Dependency-free SVG charts with hover tooltips. |
 | `js/app.js` | UI, rendering and localStorage. |
 | `css/styles.css` | Styles. |
-| `tests/engine.test.js` | `node --test tests/` |
+| `tests/unit/` | Engine unit tests (`node --test`). |
+| `tests/e2e/` | Playwright end-to-end tests with a faked clock. |
+
+To run the tests: `cd tests && npm install && npx playwright install chromium && npm test`.
 
 Data from the old v1 format is migrated automatically on first load. The original is kept under the `doppelganger_data_v1_backup` localStorage key.

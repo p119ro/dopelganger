@@ -4,3 +4,5 @@ node_modules/
 dist/
 .DS_Store
 .claude/
+tests/test-results/
+tests/playwright-report/

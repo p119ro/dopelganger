@@ -38,13 +38,32 @@
         { id: 'goggins',  name: 'Goggins',  min: 15000, multiplier: 4,   icon: '🔥' }
     ];
 
+    // metric names map to the counters tracked in achievements().
     const BADGES = [
-        { id: 'first-week',    name: 'First Week',    icon: '🎯', desc: `Hit ${STREAK_THRESHOLD}+ habits 7 days in a row` },
-        { id: 'perfect-day',   name: 'Perfect Day',   icon: '⭐', desc: `Complete all ${HABITS.length} habits in one day` },
-        { id: 'streak-master', name: 'Streak Master', icon: '🔥', desc: 'Maintain a 66-day streak' },
-        { id: 'top-performer', name: 'Top Performer', icon: '🏅', desc: 'Earn 2,500+ points in 30 days' }
+        { id: 'streak-3',      group: 'Streaks',      metric: 'bestStreak',      goal: 3,    icon: '🕯️', name: 'Warming Up',      desc: `3-day streak (${STREAK_THRESHOLD}+ habits a day)` },
+        { id: 'first-week',    group: 'Streaks',      metric: 'bestStreak',      goal: 7,    icon: '🎯', name: 'First Week',      desc: '7-day streak' },
+        { id: 'streak-30',     group: 'Streaks',      metric: 'bestStreak',      goal: 30,   icon: '🔥', name: 'Iron Month',      desc: '30-day streak' },
+        { id: 'streak-master', group: 'Streaks',      metric: 'bestStreak',      goal: 66,   icon: '🧠', name: 'Streak Master',   desc: '66-day streak' },
+        { id: 'streak-100',    group: 'Streaks',      metric: 'bestStreak',      goal: 100,  icon: '💯', name: 'Unbreakable',     desc: '100-day streak' },
+        { id: 'perfect-day',   group: 'Perfect days', metric: 'perfectDays',     goal: 1,    icon: '⭐', name: 'Perfect Day',     desc: `All ${HABITS.length} habits in one day` },
+        { id: 'perfect-7',     group: 'Perfect days', metric: 'perfectDays',     goal: 7,    icon: '🌟', name: 'Flawless Seven',  desc: '7 perfect days' },
+        { id: 'perfect-30',    group: 'Perfect days', metric: 'perfectDays',     goal: 30,   icon: '✨', name: 'Perfectionist',   desc: '30 perfect days' },
+        { id: 'perfect-100',   group: 'Perfect days', metric: 'perfectDays',     goal: 100,  icon: '🌌', name: 'Machine',         desc: '100 perfect days' },
+        { id: 'habits-50',     group: 'Volume',       metric: 'totalHabits',     goal: 50,   icon: '✅', name: 'Getting Started', desc: '50 habits completed' },
+        { id: 'habits-250',    group: 'Volume',       metric: 'totalHabits',     goal: 250,  icon: '📦', name: 'Committed',       desc: '250 habits completed' },
+        { id: 'habits-1000',   group: 'Volume',       metric: 'totalHabits',     goal: 1000, icon: '🏗️', name: 'Builder',         desc: '1,000 habits completed' },
+        { id: 'habits-2500',   group: 'Volume',       metric: 'totalHabits',     goal: 2500, icon: '🗿', name: 'Monument',        desc: '2,500 habits completed' },
+        { id: 'habit-21',      group: 'Mastery',      metric: 'bestHabitStreak', goal: 21,   icon: '🌱', name: 'Habit Formed',    desc: '21-day streak on any single habit' },
+        { id: 'habit-66',      group: 'Mastery',      metric: 'bestHabitStreak', goal: 66,   icon: '🌳', name: 'Automatic',       desc: '66-day streak on any single habit' },
+        { id: 'month-1500',    group: 'Mastery',      metric: 'bestMonth',       goal: 1500, icon: '📈', name: 'Strong Month',    desc: '1,500+ points in 30 days' },
+        { id: 'top-performer', group: 'Mastery',      metric: 'bestMonth',       goal: 2500, icon: '🏅', name: 'Top Performer',   desc: '2,500+ points in 30 days' },
+        { id: 'comeback',      group: 'Mastery',      metric: 'comebacks',       goal: 1,    icon: '🔄', name: 'Comeback',        desc: 'Pull ahead of your Shadow after falling behind' },
+        { id: 'tier-silver',   group: 'Tiers',        metric: 'bestTier',        goal: 1,    icon: '🥈', name: 'Silver',          desc: 'Reach Silver tier' },
+        { id: 'tier-gold',     group: 'Tiers',        metric: 'bestTier',        goal: 2,    icon: '🥇', name: 'Gold',            desc: 'Reach Gold tier' },
+        { id: 'tier-platinum', group: 'Tiers',        metric: 'bestTier',        goal: 3,    icon: '🏆', name: 'Platinum',        desc: 'Reach Platinum tier' },
+        { id: 'tier-diamond',  group: 'Tiers',        metric: 'bestTier',        goal: 4,    icon: '💎', name: 'Diamond',         desc: 'Reach Diamond tier' },
+        { id: 'tier-goggins',  group: 'Tiers',        metric: 'bestTier',        goal: 5,    icon: '🔥', name: 'Goggins',         desc: 'Reach Goggins tier' }
     ];
-    const TOP_PERFORMER_POINTS = 2500;
 
     // ============ DATES ============
     // Keys are 'YYYY-MM-DD'. Arithmetic is done in UTC so DST never skips or repeats a day.
@@ -265,26 +284,55 @@
         return streakEndingToday(state, today, day => day.done.length >= STREAK_THRESHOLD);
     }
 
-    function stats(state, sim) {
-        const today = sim.today;
-        let bestStreak = 0;
-        let run = 0;
-        let bestMonth = 0;
-        let month = 0;
-        let perfectDays = 0;
+    // One pass over history: running counters for every badge metric, and the
+    // first day each badge's goal was met.
+    function achievements(sim) {
+        const m = { bestStreak: 0, perfectDays: 0, totalHabits: 0, bestHabitStreak: 0, bestMonth: 0, comebacks: 0, bestTier: 0 };
+        const unlocked = {};
+        const habitRuns = Object.fromEntries(HABITS.map(h => [h.id, 0]));
         const window = [];
+        let run = 0;
+        let month = 0;
+        let behind = false;
 
         for (const entry of sim.history) {
             run = entry.done.length >= STREAK_THRESHOLD ? run + 1 : 0;
-            bestStreak = Math.max(bestStreak, run);
-            if (entry.perfect) perfectDays++;
+            m.bestStreak = Math.max(m.bestStreak, run);
+            if (entry.perfect) m.perfectDays++;
+            m.totalHabits += entry.done.length;
+
+            for (const h of HABITS) {
+                habitRuns[h.id] = entry.done.includes(h.id) ? habitRuns[h.id] + 1 : 0;
+                m.bestHabitStreak = Math.max(m.bestHabitStreak, habitRuns[h.id]);
+            }
 
             const points = entry.earned + entry.bonus;
             window.push(points);
             month += points;
             if (window.length > MONTH_DAYS) month -= window.shift();
-            bestMonth = Math.max(bestMonth, month);
+            m.bestMonth = Math.max(m.bestMonth, month);
+
+            // Only finished days count for tiers and comebacks; today can still swing.
+            if (entry.final) {
+                if (entry.you < entry.shadow) behind = true;
+                else if (behind && entry.you > entry.shadow) {
+                    m.comebacks++;
+                    behind = false;
+                }
+                m.bestTier = Math.max(m.bestTier, TIERS.indexOf(tierFor(entry.you)));
+            }
+
+            for (const b of BADGES) {
+                if (!unlocked[b.id] && m[b.metric] >= b.goal) unlocked[b.id] = entry.date;
+            }
         }
+
+        return { metrics: m, unlocked };
+    }
+
+    function stats(state, sim) {
+        const today = sim.today;
+        const { metrics, unlocked } = achievements(sim);
 
         let monthlyPoints = 0;
         for (let i = 0; i < MONTH_DAYS; i++) {
@@ -292,17 +340,41 @@
             if (entry) monthlyPoints += entry.earned + entry.bonus;
         }
 
-        const achievements = {
-            'first-week': bestStreak >= 7,
-            'perfect-day': perfectDays > 0,
-            'streak-master': bestStreak >= 66,
-            'top-performer': bestMonth >= TOP_PERFORMER_POINTS
-        };
-
         return {
             currentStreak: overallStreak(state, today),
-            bestStreak, perfectDays, monthlyPoints, achievements
+            bestStreak: metrics.bestStreak,
+            perfectDays: metrics.perfectDays,
+            monthlyPoints, metrics, unlocked
         };
+    }
+
+    // 0 = nothing done, 1-4 = partial, 5 = perfect. Shared by every calendar view.
+    function heatLevel(doneCount) {
+        if (doneCount <= 0) return 0;
+        if (doneCount >= HABITS.length) return 5;
+        return Math.min(4, Math.ceil((doneCount / HABITS.length) * 4));
+    }
+
+    function yearSummary(sim, year) {
+        const prefix = `${year}-`;
+        const days = sim.history.filter(e => e.date.startsWith(prefix));
+        let run = 0;
+        const summary = { days: days.length, habits: 0, perfectDays: 0, bestStreak: 0, earned: 0, shadow: 0, net: 0 };
+        for (const e of days) {
+            summary.habits += e.done.length;
+            if (e.perfect) summary.perfectDays++;
+            run = e.done.length >= STREAK_THRESHOLD ? run + 1 : 0;
+            summary.bestStreak = Math.max(summary.bestStreak, run);
+            summary.earned += e.earned + e.bonus;
+            if (e.final) summary.shadow += e.missed + e.penalty;
+            else summary.shadow += e.penalty;
+        }
+        if (days.length) {
+            const before = sim.byDate[addDays(days[0].date, -1)];
+            summary.net = days[days.length - 1].you - (before ? before.you : 0);
+        }
+        summary.completion = days.length ? summary.habits / (days.length * HABITS.length) : 0;
+        return summary;
     }
 
     const Engine = {
@@ -310,7 +382,8 @@
         HABIT_GOAL_DAYS, MONTH_DAYS,
         todayKey, addDays, daysBetween, isValidKey,
         emptyState, migrate, getDay, setHabit, changePenalty,
-        tierFor, nextTier, simulate, untrackedDay, level, habitStreak, overallStreak, stats
+        tierFor, nextTier, simulate, untrackedDay, level, habitStreak, overallStreak, stats,
+        achievements, heatLevel, yearSummary
     };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

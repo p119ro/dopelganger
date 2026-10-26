@@ -1,7 +1,7 @@
-// Run with: node --test tests/
+// Run with: node --test tests/unit/
 const test = require('node:test');
 const assert = require('node:assert');
-const E = require('../js/engine.js');
+const E = require('../../js/engine.js');
 
 const all = E.HABITS.map(h => h.id);
 
@@ -87,4 +87,40 @@ test('unchecking keeps the start date', () => {
     s = E.setHabit(s, '2026-10-20', 'gym', false);
     assert.strictEqual(s.startDate, '2026-10-20');
     assert.deepStrictEqual(s.days, {});
+});
+
+test('achievements track progress and the day each one unlocked', () => {
+    let s = E.emptyState();
+    for (let i = 0; i < 8; i++) for (const id of all) s = E.setHabit(s, E.addDays('2026-10-01', i), id, true);
+    const { metrics, unlocked } = E.achievements(E.simulate(s, '2026-10-20'));
+    assert.strictEqual(metrics.bestStreak, 8);
+    assert.strictEqual(metrics.perfectDays, 8);
+    assert.strictEqual(metrics.totalHabits, 72);
+    assert.strictEqual(unlocked['streak-3'], '2026-10-03');
+    assert.strictEqual(unlocked['first-week'], '2026-10-07');
+    assert.strictEqual(unlocked['perfect-7'], '2026-10-07');
+    assert.strictEqual(unlocked['habits-50'], '2026-10-06');
+    assert.strictEqual(unlocked['streak-30'], undefined);
+});
+
+test('comeback needs falling behind first, then pulling ahead', () => {
+    let s = E.setHabit(E.emptyState(), '2026-10-01', 'gym', true);
+    // Day 2 missed puts you behind; days 3..5 perfect pull you ahead.
+    for (let i = 2; i <= 4; i++) for (const id of all) s = E.setHabit(s, E.addDays('2026-10-01', i), id, true);
+    const { metrics } = E.achievements(E.simulate(s, '2026-10-10'));
+    assert.strictEqual(metrics.comebacks, 1);
+});
+
+test('heat levels and year summary', () => {
+    assert.deepStrictEqual([0, 1, 2, 3, 5, 7, 8, 9].map(E.heatLevel), [0, 1, 1, 2, 3, 4, 4, 5]);
+    let s = E.emptyState();
+    for (const id of all) s = E.setHabit(s, '2025-12-31', id, true);
+    s = E.setHabit(s, '2026-01-02', 'gym', true);
+    const sim = E.simulate(s, '2026-01-03');
+    const y = E.yearSummary(sim, 2026);
+    assert.strictEqual(y.days, 3);
+    assert.strictEqual(y.perfectDays, 0);
+    assert.strictEqual(y.earned, 15);
+    assert.strictEqual(y.net, sim.you - sim.byDate['2025-12-31'].you);
+    assert.strictEqual(E.yearSummary(sim, 2025).perfectDays, 1);
 });

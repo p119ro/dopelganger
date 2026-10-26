@@ -19,6 +19,11 @@
         return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
+    function monthYear(key) {
+        const [y, m] = key.split('-').map(Number);
+        return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    }
+
     function compact(n) {
         const abs = Math.abs(n);
         if (abs >= 1000) return `${(n / 1000).toFixed(abs >= 10000 || n % 1000 === 0 ? 0 : 1)}K`;
@@ -70,10 +75,10 @@
         }
     }
 
-    function drawXAxis(svg, plot, labels, x, maxLabels) {
+    function drawXAxis(svg, plot, labels, x, maxLabels, format = shortDate) {
         for (const i of labelIndices(labels.length, maxLabels)) {
             const anchor = labels.length === 1 ? 'middle' : i === 0 ? 'start' : i === labels.length - 1 ? 'end' : 'middle';
-            svgEl('text', { x: x(i), y: HEIGHT - 8, class: 'chart-axis', 'text-anchor': anchor }, svg).textContent = shortDate(labels[i]);
+            svgEl('text', { x: x(i), y: HEIGHT - 8, class: 'chart-axis', 'text-anchor': anchor }, svg).textContent = format(labels[i]);
         }
     }
 
@@ -93,9 +98,25 @@
         container.innerHTML = `<div class="chart-empty">${message}</div>`;
     }
 
+    // Mouse clicks select straight away. On touch the first tap shows the tooltip
+    // and a second tap on the same point selects it.
+    function selectable(target, onSelect, indexFor) {
+        if (!onSelect) return;
+        target.classList.add('selectable');
+        let lastTap = -1;
+        target.addEventListener('click', evt => {
+            const i = indexFor(evt);
+            if (evt.pointerType === 'mouse' || !evt.pointerType || i === lastTap) onSelect(i);
+            lastTap = i;
+        });
+    }
+
+    const HINT = '<div class="tt-hint">Click to open this day</div>';
+
     // series: [{ name, color, values }], labels: date keys (same length as values)
-    function line(container, { series, labels, emptyMessage }) {
+    function line(container, { series, labels, emptyMessage, onSelect, title = shortDate, xLabel = shortDate }) {
         if (!labels.length) return empty(container, emptyMessage);
+        if (!series.length) return empty(container, 'Both lines hidden. Click a legend item to show one.');
         const { svg, tooltip, plot } = setup(container);
         plot.x1 -= 56; // room for end labels
 
@@ -109,7 +130,7 @@
 
         svg.setAttribute('aria-label', series.map(s => `${s.name}: ${Math.round(s.values[n - 1])} points`).join(', '));
         drawYAxis(svg, plot, tickValues, y, compact);
-        drawXAxis(svg, plot, labels, x, Math.max(2, Math.floor((plot.x1 - plot.x0) / 70)));
+        drawXAxis(svg, plot, labels, x, Math.max(2, Math.floor((plot.x1 - plot.x0) / 70)), xLabel);
 
         for (const s of series) {
             const d = s.values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
@@ -133,13 +154,17 @@
         const cross = svgEl('line', { y1: plot.y1, y2: plot.y0, class: 'chart-crosshair' }, hover);
         const dots = series.map(s => svgEl('circle', { r: 4, fill: s.color, class: 'chart-dot' }, hover));
         const hit = svgEl('rect', {
-            x: plot.x0 - 10, y: 0, width: plot.x1 - plot.x0 + 20, height: HEIGHT, fill: 'transparent'
+            x: plot.x0 - 10, y: 0, width: plot.x1 - plot.x0 + 20, height: HEIGHT, fill: 'transparent', class: 'chart-hit'
         }, svg);
 
-        const move = evt => {
+        const indexAt = evt => {
             const rect = svg.getBoundingClientRect();
             const px = ((evt.clientX - rect.left) / rect.width) * plot.width;
-            const i = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round(((px - plot.x0) / (plot.x1 - plot.x0)) * (n - 1))));
+            return n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round(((px - plot.x0) / (plot.x1 - plot.x0)) * (n - 1))));
+        };
+        const move = evt => {
+            const i = indexAt(evt);
+            const rect = svg.getBoundingClientRect();
             hover.classList.add('visible');
             cross.setAttribute('x1', x(i));
             cross.setAttribute('x2', x(i));
@@ -150,34 +175,38 @@
             const rows = series.map(s =>
                 `<div class="tt-row"><span class="tt-key" style="background:${s.color}"></span>${s.name}<b>${Math.round(s.values[i]).toLocaleString()}</b></div>`
             ).join('');
-            showTooltip(container, tooltip, `<div class="tt-title">${shortDate(labels[i])}</div>${rows}`, (x(i) / plot.width) * rect.width);
+            showTooltip(container, tooltip, `<div class="tt-title">${title(labels[i])}</div>${rows}${onSelect ? HINT : ''}`, (x(i) / plot.width) * rect.width);
         };
         hit.addEventListener('pointermove', move);
         hit.addEventListener('pointerdown', move);
-        hit.addEventListener('pointerleave', () => {
+        // A lifted finger also fires pointerleave; touch tooltips stay until a tap elsewhere.
+        hit.addEventListener('pointerleave', evt => {
+            if (evt.pointerType === 'touch') return;
             hover.classList.remove('visible');
             hideTooltip(tooltip);
         });
+        selectable(hit, onSelect && (i => onSelect(i)), indexAt);
     }
 
-    // values: numbers 0..max, labels: date keys, describe(i) -> tooltip html, dimmed(i) -> bool
-    function columns(container, { values, labels, max, color, describe, dimmed, reference, emptyMessage }) {
+    // values: numbers 0..max, labels: date keys, describe(i) -> tooltip html,
+    // colorFor(i) -> bar color, dimmed(i) -> bool
+    function columns(container, { values, labels, max, colorFor, describe, dimmed, reference, emptyMessage, onSelect, ariaLabel, xLabel = shortDate }) {
         if (!labels.length) return empty(container, emptyMessage);
         const { svg, tooltip, plot } = setup(container);
 
         const n = labels.length;
         const slot = (plot.x1 - plot.x0) / n;
-        const barW = Math.max(2, Math.min(24, slot * 0.7, slot - 2));
+        const barW = Math.max(1, Math.min(24, slot * 0.7, slot - 1));
         const x = i => plot.x0 + slot * i + slot / 2;
         const y = v => plot.y0 - (v / max) * (plot.y0 - plot.y1);
 
-        svg.setAttribute('aria-label', `Habits completed per day over the last ${n} days`);
+        svg.setAttribute('aria-label', ariaLabel || `${n} bars`);
         const step = max % 3 === 0 ? max / 3 : Math.ceil(max / 4);
         const yTicks = [];
         for (let v = 0; v < max; v += step) yTicks.push(v);
         yTicks.push(max);
         drawYAxis(svg, plot, yTicks, y, v => String(v));
-        drawXAxis(svg, plot, labels, x, Math.max(2, Math.floor((plot.x1 - plot.x0) / 70)));
+        drawXAxis(svg, plot, labels, x, Math.max(2, Math.floor((plot.x1 - plot.x0) / 70)), xLabel);
 
         if (reference) {
             const ry = y(reference.value);
@@ -193,26 +222,37 @@
             const top = plot.y0 - h;
             const d = `M${left},${plot.y0}V${top + r}Q${left},${top} ${left + r},${top}` +
                 `H${left + barW - r}Q${left + barW},${top} ${left + barW},${top + r}V${plot.y0}Z`;
-            return svgEl('path', { d, fill: color, class: dimmed && dimmed(i) ? 'chart-bar dimmed' : 'chart-bar' }, svg);
+            return svgEl('path', { d, fill: colorFor(i), class: dimmed && dimmed(i) ? 'chart-bar dimmed' : 'chart-bar' }, svg);
         });
 
+        const hitLayer = svgEl('g', { class: 'chart-hit' }, svg);
         values.forEach((_, i) => {
             const hit = svgEl('rect', {
-                x: plot.x0 + slot * i, y: plot.y1, width: slot, height: plot.y0 - plot.y1, fill: 'transparent'
-            }, svg);
+                x: plot.x0 + slot * i, y: plot.y1, width: slot, height: plot.y0 - plot.y1, fill: 'transparent', 'data-i': i
+            }, hitLayer);
             const enter = () => {
                 bars.forEach((b, k) => b && b.classList.toggle('faded', k !== i));
                 const rect = svg.getBoundingClientRect();
-                showTooltip(container, tooltip, describe(i), (x(i) / plot.width) * rect.width);
+                showTooltip(container, tooltip, describe(i) + (onSelect ? HINT : ''), (x(i) / plot.width) * rect.width);
             };
             hit.addEventListener('pointerenter', enter);
             hit.addEventListener('pointerdown', enter);
         });
-        svg.addEventListener('pointerleave', () => {
+        svg.addEventListener('pointerleave', evt => {
+            if (evt.pointerType === 'touch') return;
             bars.forEach(b => b && b.classList.remove('faded'));
             hideTooltip(tooltip);
         });
+        selectable(hitLayer, onSelect, evt => Number(evt.target.dataset.i));
     }
 
-    root.Charts = { line, columns, shortDate };
+    // Tapping anywhere outside a chart clears touch tooltips.
+    document.addEventListener('pointerdown', evt => {
+        if (evt.target.closest && evt.target.closest('.chart')) return;
+        document.querySelectorAll('.chart-tooltip.visible').forEach(hideTooltip);
+        document.querySelectorAll('.chart-hover.visible').forEach(g => g.classList.remove('visible'));
+        document.querySelectorAll('.chart-bar.faded').forEach(b => b.classList.remove('faded'));
+    });
+
+    root.Charts = { line, columns, shortDate, monthYear };
 })(this);

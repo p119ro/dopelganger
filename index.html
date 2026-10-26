@@ -15,7 +15,7 @@
     <script src="js/charts.js" defer></script>
     <script src="js/app.js" defer></script>
 </head>
-<body>
+<body data-tier="bronze">
     <header class="header">
         <div class="header-container">
             <div class="logo">
@@ -28,7 +28,7 @@
                 <a class="nav-btn" href="#progress" data-section="progress">Progress</a>
             </nav>
             <div class="user-info">
-                <span class="current-tier bronze" id="currentTier">Bronze</span>
+                <span class="current-tier" id="currentTier">Bronze</span>
                 <span class="total-points" id="totalPoints">0 pts</span>
             </div>
         </div>
@@ -37,7 +37,7 @@
     <main class="main-container">
 
         <!-- Dashboard -->
-        <section class="section active" id="dashboard">
+        <section class="section active" data-view="dashboard">
             <div class="dashboard-grid">
                 <div class="card battle-arena">
                     <h2 class="gradient-text">Your Inner Battle</h2>
@@ -59,6 +59,7 @@
                             </div>
                             <h3>You</h3>
                             <div class="combatant-level" id="avatarLevel">Level 1</div>
+                            <div class="xp-bar"><div class="xp-fill" id="avatarXpFill"></div></div>
                             <div class="combatant-sub" id="avatarExp">0 / 100 XP</div>
                         </div>
 
@@ -72,37 +73,53 @@
                             </div>
                             <h3>Your Shadow</h3>
                             <div class="combatant-level" id="doppelgangerLevel">Level 1</div>
+                            <div class="xp-bar shadow"><div class="xp-fill" id="shadowXpFill"></div></div>
                             <div class="combatant-sub" id="doppelgangerPower">50% Influence</div>
                         </div>
+                    </div>
+
+                    <div class="week-strip-wrap">
+                        <div class="week-strip-head">
+                            <span>Last 7 days</span>
+                            <span class="muted">Tap a day to edit it</span>
+                        </div>
+                        <div class="week-strip" id="weekStrip"></div>
                     </div>
                 </div>
 
                 <div class="quick-stats">
-                    <div class="card stat-card">
+                    <div class="card stat-card streak">
                         <div class="stat-icon">🔥</div>
                         <div class="stat-value" id="currentStreak">0</div>
                         <div class="stat-label">Day Streak</div>
+                        <div class="stat-sub" id="bestStreak">Best: 0</div>
                     </div>
-                    <div class="card stat-card">
+                    <div class="card stat-card points">
                         <div class="stat-icon">📈</div>
                         <div class="stat-value" id="monthlyPoints">0</div>
                         <div class="stat-label">Points (30 days)</div>
+                        <div class="stat-sub" id="monthlyAvg">0 / day</div>
                     </div>
-                    <div class="card stat-card">
+                    <div class="card stat-card perfect">
                         <div class="stat-icon">⭐</div>
                         <div class="stat-value" id="perfectDays">0</div>
                         <div class="stat-label">Perfect Days</div>
+                        <div class="stat-sub" id="achievementCount">0 badges</div>
                     </div>
-                    <div class="card stat-card">
-                        <div class="stat-icon">💎</div>
+                    <div class="card stat-card tier-stat">
+                        <div class="stat-icon" id="tierIcon">🥉</div>
                         <div class="stat-value" id="tierProgress">0%</div>
                         <div class="stat-label" id="tierProgressLabel">To Silver</div>
+                        <div class="stat-sub" id="tierPointsLeft">1,000 pts to go</div>
                     </div>
                 </div>
 
                 <div class="card today-habits">
                     <div class="today-header">
-                        <h3>Today's Mission</h3>
+                        <div>
+                            <h3>Today's Mission</h3>
+                            <div class="day-countdown" id="dayCountdown">Day ends at 4:00 AM</div>
+                        </div>
                         <div class="completion-circle" id="dailyCompletion">
                             <span class="completion-percentage" id="completionPercentage">0%</span>
                         </div>
@@ -113,14 +130,33 @@
         </section>
 
         <!-- Habits -->
-        <section class="section" id="habits">
+        <section class="section" data-view="habits">
             <div class="habits-header">
                 <h2 class="gradient-text">Daily Habits</h2>
-                <div class="date-nav">
-                    <button class="date-btn" id="prevDay" aria-label="Previous day">◀</button>
-                    <span class="current-date" id="currentDate">Today</span>
-                    <button class="date-btn" id="nextDay" aria-label="Next day">▶</button>
-                    <button class="today-btn" id="todayBtn">Today</button>
+                <div class="date-nav-wrap">
+                    <div class="date-nav">
+                        <button class="date-btn" id="prevDay" aria-label="Previous day">◀</button>
+                        <button class="current-date" id="datePickerBtn" aria-haspopup="dialog" aria-expanded="false" title="Pick a date">
+                            <span id="currentDate">Today</span><span class="caret" aria-hidden="true">▾</span>
+                        </button>
+                        <button class="date-btn" id="nextDay" aria-label="Next day">▶</button>
+                        <button class="today-btn" id="todayBtn">Today</button>
+                    </div>
+                    <div class="calendar-popover" id="calendar" role="dialog" aria-label="Pick a date" hidden>
+                        <div class="cal-head">
+                            <button class="cal-nav" id="calPrev" aria-label="Previous month">‹</button>
+                            <select id="calMonth" aria-label="Month"></select>
+                            <select id="calYear" aria-label="Year"></select>
+                            <button class="cal-nav" id="calNext" aria-label="Next month">›</button>
+                        </div>
+                        <div class="cal-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+                        <div class="cal-grid" id="calGrid"></div>
+                        <div class="cal-month-summary" id="calSummary"></div>
+                        <div class="cal-foot">
+                            <span class="heat-legend">Less <i class="heat-cell heat-miss"></i><i class="heat-cell heat-1"></i><i class="heat-cell heat-2"></i><i class="heat-cell heat-3"></i><i class="heat-cell heat-4"></i><i class="heat-cell heat-5"></i> More</span>
+                            <button class="today-btn" id="calToday">Today</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <p class="date-note" id="dateNote"></p>
@@ -150,7 +186,7 @@
                         <div class="summary-item"><span class="summary-label">Points earned</span><span class="summary-value" id="pointsEarned">0</span></div>
                         <div class="summary-item"><span class="summary-label">Screen time penalty</span><span class="summary-value" id="penaltyPoints">0</span></div>
                         <div class="summary-item"><span class="summary-label" id="punishmentLabel">Missed-habit punishment</span><span class="summary-value" id="punishmentPoints">0</span></div>
-                        <div class="summary-item"><span class="summary-label">Shadow gains</span><span class="summary-value negative" id="shadowGain">0</span></div>
+                        <div class="summary-item"><span class="summary-label">Shadow gains</span><span class="summary-value" id="shadowGain">0</span></div>
                         <div class="summary-item total"><span class="summary-label">Net for you</span><span class="summary-value" id="finalScore">0</span></div>
                     </div>
                 </div>
@@ -158,8 +194,61 @@
         </section>
 
         <!-- Progress -->
-        <section class="section" id="progress">
+        <section class="section" data-view="progress">
             <h2 class="gradient-text section-title">Progress</h2>
+
+            <div class="card history-card">
+                <div class="card-head">
+                    <h3>History</h3>
+                    <div class="year-switch">
+                        <button class="cal-nav" id="yearPrev" aria-label="Previous year">‹</button>
+                        <span id="yearLabel">2026</span>
+                        <button class="cal-nav" id="yearNext" aria-label="Next year">›</button>
+                    </div>
+                </div>
+                <div class="year-stats" id="yearStats"></div>
+                <div class="heatmap-scroll" id="heatmapScroll">
+                    <div class="heatmap" id="heatmap"></div>
+                </div>
+                <div class="heatmap-foot">
+                    <span class="muted">Click any day to open it</span>
+                    <span class="heat-legend">Missed <i class="heat-cell heat-miss"></i> · Less <i class="heat-cell heat-1"></i><i class="heat-cell heat-2"></i><i class="heat-cell heat-3"></i><i class="heat-cell heat-4"></i><i class="heat-cell heat-5"></i> Perfect</span>
+                </div>
+            </div>
+
+            <div class="card charts-card">
+                <div class="card-head">
+                    <h3>Trends</h3>
+                    <div class="range-chips" id="rangeChips" role="group" aria-label="Chart range">
+                        <button data-range="7">7D</button>
+                        <button data-range="30">30D</button>
+                        <button data-range="90">90D</button>
+                        <button data-range="365">1Y</button>
+                        <button data-range="all">All</button>
+                    </div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-block">
+                        <div class="chart-head">
+                            <h4>Power over time</h4>
+                            <div class="chart-legend">
+                                <button class="legend-btn" data-series="you" aria-pressed="true"><i class="legend-key you"></i>You</button>
+                                <button class="legend-btn" data-series="shadow" aria-pressed="true"><i class="legend-key shadow"></i>Shadow</button>
+                            </div>
+                        </div>
+                        <p class="chart-sub" id="powerSub">Total points at the end of each day</p>
+                        <div class="chart" id="powerChart"></div>
+                    </div>
+
+                    <div class="chart-block">
+                        <div class="chart-head">
+                            <h4>Habits completed</h4>
+                        </div>
+                        <p class="chart-sub" id="habitsSub">Per day · today is faded until it's over</p>
+                        <div class="chart" id="habitsChart"></div>
+                    </div>
+                </div>
+            </div>
 
             <div class="progress-content">
                 <div class="card tier-progression">
@@ -167,38 +256,37 @@
                     <div class="tier-ladder" id="tierLadder"></div>
                 </div>
 
-                <div class="charts-container">
-                    <div class="card chart-card">
-                        <div class="chart-head">
-                            <h4>Power over time</h4>
-                            <div class="chart-legend">
-                                <span><i class="legend-key you"></i>You</span>
-                                <span><i class="legend-key shadow"></i>Shadow</span>
-                            </div>
-                        </div>
-                        <p class="chart-sub">Total points at the end of each day, last 30 days</p>
-                        <div class="chart" id="powerChart"></div>
+                <div class="card habit-breakdown">
+                    <div class="card-head">
+                        <h3>Habit Breakdown</h3>
+                        <span class="muted" id="breakdownRange">Last 30 days</span>
                     </div>
-
-                    <div class="card chart-card">
-                        <div class="chart-head">
-                            <h4>Habits completed per day</h4>
-                        </div>
-                        <p class="chart-sub">Last 30 days · today is faded until it's over</p>
-                        <div class="chart" id="habitsChart"></div>
-                    </div>
+                    <div class="breakdown-list" id="breakdownList"></div>
                 </div>
+            </div>
 
-                <div class="card achievements">
+            <div class="card achievements">
+                <div class="card-head">
                     <h3>Achievements</h3>
-                    <div class="badges-grid" id="badgesGrid"></div>
+                    <span class="muted" id="badgeSummary">0 / 0 unlocked</span>
                 </div>
+                <div class="badge-total"><div class="badge-total-fill" id="badgeTotalFill"></div></div>
+                <div id="badgeGroups"></div>
             </div>
         </section>
     </main>
 
     <footer class="footer">
         <p class="footer-quote">"This isn't just a habit tracker. This is a war. Between you and the version of you that never changes."</p>
+        <div class="data-controls">
+            <span class="muted">Your data lives only in this browser.</span>
+            <button class="ghost-btn" id="exportBtn">Export backup</button>
+            <button class="ghost-btn" id="importBtn">Import backup</button>
+            <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
     </footer>
+
+    <div class="float-tip" id="floatTip" role="tooltip"></div>
+    <div class="toast-stack" id="toasts" aria-live="polite"></div>
 </body>
 </html>
